@@ -53,6 +53,7 @@ export function ShelfScreen() {
   const [confirm, setConfirm] = useState<Confirm>(null)
   const [confirming, setConfirming] = useState(false)
   const [guideOpen, setGuideOpen] = useState(false)
+  const [adminDesk, setAdminDesk] = useState(false)
   const [joining, setJoining] = useState(false)
   const awaitingId = useRef<string | null>(null)
   const seenMe = useRef(false)
@@ -197,6 +198,23 @@ export function ShelfScreen() {
 
   if (!me || account !== 'app') {
     const mode = !me ? (account === 'signup' || shelf.data.friends.length === 0 ? 'signup' : 'login') : account === 'edit' ? 'edit' : account
+    if (!me && adminDesk) {
+      return (
+        <>
+          <SettingsPage
+            adminOnly
+            onBack={() => setAdminDesk(false)}
+            onSwitch={() => undefined}
+            onLogout={() => undefined}
+            onDelete={() => undefined}
+            onGuide={() => setGuideOpen(true)}
+            onClearBooks={() => setConfirm({ kind: 'clear' })}
+          />
+          <GuideDialog open={guideOpen} onOpenChange={setGuideOpen} demo={shelf.mode === 'demo'} />
+          {confirmDialog}
+        </>
+      )
+    }
     return (
       <>
         <ProfileGate
@@ -206,6 +224,7 @@ export function ShelfScreen() {
           onCancel={me ? () => setAccount('app') : undefined}
           onDelete={(friend) => setConfirm({ kind: 'delete-friend', friend })}
           onMode={setAccount}
+          onAdmin={!me ? () => setAdminDesk(true) : undefined}
         />
         {confirmDialog}
       </>

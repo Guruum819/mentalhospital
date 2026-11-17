@@ -22,6 +22,7 @@ export function SettingsPage({
   onDelete,
   onGuide,
   onClearBooks,
+  adminOnly = false,
 }: {
   onBack: () => void
   onSwitch: () => void
@@ -29,10 +30,13 @@ export function SettingsPage({
   onDelete: () => void
   onGuide: () => void
   onClearBooks: () => void
+  /** Admin session with no member logged in. */
+  adminOnly?: boolean
 }) {
   const shelf = useShelf()
   const [adminOpen, setAdminOpen] = useState(false)
   const [panel, setPanel] = useState<'root' | 'patches' | 'board' | string>('root')
+  const [boardFromAdmin, setBoardFromAdmin] = useState(false)
   const [newerBuild, setNewerBuild] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const buildLabel = formatBuildLabel(APP_BUILD_TIME)
@@ -60,9 +64,14 @@ export function SettingsPage({
     }
   }
 
-  if (adminOpen) {
-    return <AdminScreen onBack={() => setAdminOpen(false)} />
+  function openBoard(fromAdmin: boolean) {
+    setBoardFromAdmin(fromAdmin)
+    setAdminOpen(false)
+    setPanel('board')
   }
+
+  const openRequestCount = shelf.data.posts.filter((post) => !post.done).length
+  const requestDetail = openRequestCount > 0 ? `답변 전 ${openRequestCount}개` : '답변 전인 글이 없어용'
 
   if (panel === 'patches') {
     return <PatchList onBack={() => setPanel('root')} onOpen={(date) => setPanel(date)} />
@@ -73,7 +82,18 @@ export function SettingsPage({
   }
 
   if (panel === 'board') {
-    return <RequestBoard onBack={() => setPanel('root')} />
+    return (
+      <RequestBoard
+        onBack={() => {
+          setPanel('root')
+          if (boardFromAdmin) setAdminOpen(true)
+        }}
+      />
+    )
+  }
+
+  if (adminOpen || (adminOnly && !shelf.admin)) {
+    return <AdminScreen onBack={() => (adminOnly && !shelf.admin ? onBack() : setAdminOpen(false))} onOpenBoard={() => openBoard(true)} />
   }
 
   return (
@@ -102,15 +122,18 @@ export function SettingsPage({
           }
           onClick={() => void refreshBuild()}
         />
-        <SettingsRow label="이거 수정해 주세요!" onClick={() => setPanel('board')} />
+        <SettingsRow label="이거 수정해 주세요!" onClick={() => openBoard(false)} />
       </SettingsGroup>
-      <SettingsGroup title="계정">
-        <SettingsRow label="계정 전환" detail="이름이랑 생일로 다른 프로필에 들어가용" onClick={onSwitch} />
-        <SettingsRow label="로그아웃" detail="이 폰에서 이 계정만 빠져용" onClick={onLogout} />
-      </SettingsGroup>
+      {adminOnly ? null : (
+        <SettingsGroup title="계정">
+          <SettingsRow label="계정 전환" detail="이름이랑 생일로 다른 프로필에 들어가용" onClick={onSwitch} />
+          <SettingsRow label="로그아웃" detail="이 폰에서 이 계정만 빠져용" onClick={onLogout} />
+        </SettingsGroup>
+      )}
       {shelf.admin ? (
         <SettingsGroup title="관리">
           <SettingsRow label="멤버 관리" detail="가입 승인이랑 강퇴를 할 수 있어용" onClick={() => setAdminOpen(true)} />
+          <SettingsRow label="수정 요청 보기" detail={requestDetail} onClick={() => openBoard(false)} />
         </SettingsGroup>
       ) : null}
       <div className="px-4 py-6 text-center">
@@ -124,7 +147,9 @@ export function SettingsPage({
         {shelf.admin ? (
           <SettingsRow label="책 비우기" detail="프로필은 두고 책이랑 한 줄 평만 지워용" danger onClick={onClearBooks} />
         ) : null}
-        <SettingsRow label="계정 삭제" detail="읽은 기록이랑 읽는 중, 한 줄 평은 사라져용. 올린 책은 남아용." danger onClick={onDelete} />
+        {adminOnly ? null : (
+          <SettingsRow label="계정 삭제" detail="읽은 기록이랑 읽는 중, 한 줄 평은 사라져용. 올린 책은 남아용." danger onClick={onDelete} />
+        )}
       </div>
     </div>
   )
@@ -241,6 +266,7 @@ function RequestBoard({ onBack }: { onBack: () => void }) {
     <EdgeBack onBack={onBack}>
       <div className="min-h-dvh bg-background">
         <ScreenHeader title="이거 수정해 주세요!" onBack={onBack} />
+        {me ? (
         <form onSubmit={submit} className="flex gap-3 border-b border-border px-4 py-3">
           <Avatar name={me?.name ?? '?'} photo={me?.photo ?? null} size={40} />
           <div className="min-w-0 flex-1">
@@ -268,6 +294,9 @@ function RequestBoard({ onBack }: { onBack: () => void }) {
             </div>
           </div>
         </form>
+        ) : (
+          <p className="border-b border-border px-4 py-3 text-sm text-muted-foreground">멤버로 들어가 있지 않아서 글은 못 올리고, 답글은 달 수 있어용.</p>
+        )}
         <ul>
         {shelf.data.posts.length === 0 ? (
           <li className="px-4 py-8 text-[15px] text-muted-foreground">아직 요청이 없어용.</li>
@@ -364,7 +393,7 @@ function formatWhen(at: number) {
   return new Intl.DateTimeFormat('ko', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }).format(at)
 }
 
-function AdminScreen({ onBack }: { onBack: () => void }) {
+function AdminScreen({ onBack, onOpenBoard }: { onBack: () => void; onOpenBoard: () => void }) {
   const shelf = useShelf()
   const configured = Boolean(shelf.data.admin)
   const pendingFriends = shelf.data.friends.filter((friend) => !friend.approved)
@@ -381,7 +410,7 @@ function AdminScreen({ onBack }: { onBack: () => void }) {
           </div>
         </header>
         <div className="px-4 py-4">
-          {!configured ? <AdminSetup /> : shelf.admin ? <AdminTools pending={pendingFriends} /> : <AdminLogin />}
+          {!configured ? <AdminSetup /> : shelf.admin ? <AdminTools pending={pendingFriends} onOpenBoard={onOpenBoard} /> : <AdminLogin />}
         </div>
       </div>
     </EdgeBack>
@@ -439,7 +468,13 @@ function AdminLogin() {
   )
 }
 
-function AdminTools({ pending }: { pending: { id: string; name: string; birthday: string }[] }) {
+function AdminTools({
+  pending,
+  onOpenBoard,
+}: {
+  pending: { id: string; name: string; birthday: string }[]
+  onOpenBoard: () => void
+}) {
   const shelf = useShelf()
   const [current, setCurrent] = useState('')
   const [next, setNext] = useState('')
@@ -448,6 +483,7 @@ function AdminTools({ pending }: { pending: { id: string; name: string; birthday
   const [kicking, setKicking] = useState<Friend | null>(null)
   const [kickBusy, setKickBusy] = useState(false)
   const members = shelf.data.friends.filter((friend) => friend.approved)
+  const openRequestCount = shelf.data.posts.filter((post) => !post.done).length
 
   async function kick() {
     if (!kicking || kickBusy) return
@@ -462,6 +498,10 @@ function AdminTools({ pending }: { pending: { id: string; name: string; birthday
 
   return (
     <div className="grid gap-8">
+      <button type="button" className="flex min-h-14 w-full items-center justify-between gap-3 border-b border-border py-3 text-left" onClick={onOpenBoard}>
+        <span className="font-bold">수정 요청 보기</span>
+        <span className="text-sm text-muted-foreground">{openRequestCount > 0 ? `답변 전 ${openRequestCount}개` : '답변 전인 글이 없어용'}</span>
+      </button>
       <section>
         <h2 className="pb-1 text-[13px] font-medium text-muted-foreground">가입 신청</h2>
         {pending.length === 0 ? (

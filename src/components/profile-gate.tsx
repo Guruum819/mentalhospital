@@ -15,6 +15,7 @@ export function ProfileGate({
   onCancel,
   onDelete,
   onMode,
+  onAdmin,
 }: {
   mode: 'login' | 'signup' | 'edit'
   me: Friend | null
@@ -22,6 +23,7 @@ export function ProfileGate({
   onCancel?: () => void
   onDelete: (friend: Friend) => void
   onMode: (mode: 'login' | 'signup') => void
+  onAdmin?: () => void
 }) {
   const shelf = useShelf()
   const [name, setName] = useState('')
@@ -87,6 +89,11 @@ export function ProfileGate({
           </div>
         </div>
       )}
+      {onAdmin && mode !== 'edit' ? (
+        <button type="button" className="mt-auto pt-8 text-center text-xs text-muted-foreground underline" onClick={onAdmin}>
+          관리자
+        </button>
+      ) : null}
     </main>
   )
 }
