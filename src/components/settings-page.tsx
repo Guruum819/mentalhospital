@@ -1,3 +1,5 @@
+import { ChevronLeft } from 'lucide-react'
+
 export function SettingsPage({
   onBack,
   onSwitch,
@@ -17,12 +19,13 @@ export function SettingsPage({
 }) {
   return (
     <div className="min-h-dvh bg-background">
-      <header className="sticky top-0 z-20 flex h-14 items-center border-b bg-background/90 px-2 backdrop-blur">
-        <button type="button" className="h-11 px-3 text-lg" onClick={onBack} aria-label="뒤로">
-          ←
-        </button>
-        <h1 className="flex-1 text-center text-base font-bold">설정</h1>
-        <span className="w-11" />
+      <header className="sticky top-0 z-20 border-b border-border bg-background/80 backdrop-blur-md pt-[env(safe-area-inset-top)]">
+        <div className="relative flex h-14 items-center">
+          <button type="button" className="grid size-11 place-items-center" onClick={onBack} aria-label="뒤로">
+            <ChevronLeft className="size-6" />
+          </button>
+          <h1 className="pointer-events-none absolute inset-x-14 text-center text-[17px] font-bold">설정</h1>
+        </div>
       </header>
       <div className="grid">
         <SettingsRow label="계정 전환" detail="이름과 생일로 다른 프로필에 들어가요" onClick={onSwitch} />

@@ -97,9 +97,9 @@ export function BookDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex max-h-[92dvh] w-full flex-col gap-0 p-0 sm:max-w-md">
+      <DialogContent className="flex max-h-[92dvh] w-full flex-col gap-0 overflow-hidden p-0">
         <DialogHeader className="px-4 pt-4 pr-12">
-          <DialogTitle className="font-serif text-xl">{book ? '책 수정' : '책 추가'}</DialogTitle>
+          <DialogTitle>{book ? '책 수정' : '책 추가'}</DialogTitle>
           <DialogDescription>
             {book
               ? '제목과 저자를 고칩니다. 구매자는 이 책을 올린 사람이에요.'
@@ -157,7 +157,7 @@ export function BookDialog({
                     type="button"
                     disabled={pendingId !== null}
                     onClick={() => void createFrom(hit)}
-                    className="flex min-h-16 w-full items-center gap-3 rounded-2xl border bg-card px-2 py-2 text-left active:scale-[0.99] disabled:opacity-60"
+                    className="flex min-h-14 w-full items-center gap-3 border-b border-border py-2 text-left disabled:opacity-60"
                   >
                     {hit.coverUrl ? (
                       <img src={hit.coverUrl} alt="" referrerPolicy="no-referrer" className="h-14 w-10 rounded-md object-cover" />
@@ -208,7 +208,7 @@ export function BookDialog({
             </>
           )}
         </div>
-        <DialogFooter className="mx-0 mb-0 rounded-none">
+        <DialogFooter className="shrink-0 px-4 pt-2 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
           <Button type="button" variant="outline" className="h-12 text-base" onClick={() => onOpenChange(false)}>
             닫기
           </Button>

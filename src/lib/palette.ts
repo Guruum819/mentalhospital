@@ -26,14 +26,14 @@ export function paletteColor(id: string): PaletteColor {
 export function inkFor(hex: string): string {
   const value = hex.replace('#', '')
   const parsed = Number.parseInt(value, 16)
-  if (!Number.isFinite(parsed) || value.length !== 6) return '#fffaf5'
+  if (!Number.isFinite(parsed) || value.length !== 6) return '#ffffff'
   const channel = (shift: number) => {
     const raw = ((parsed >> shift) & 255) / 255
     return raw <= 0.03928 ? raw / 12.92 : ((raw + 0.055) / 1.055) ** 2.4
   }
   const luminance =
     0.2126 * channel(16) + 0.7152 * channel(8) + 0.0722 * channel(0)
-  return luminance > 0.42 ? '#2b2416' : '#fffaf5'
+  return luminance > 0.42 ? '#0f1419' : '#ffffff'
 }
 
 export function firstFreeColor(used: readonly string[]): string {

@@ -44,7 +44,7 @@ export function StarRating({
               <span className={`relative ${starClass}`}>
                 <Star className={`${starClass} text-muted-foreground/35`} />
                 <span className="absolute inset-y-0 left-0 overflow-hidden" style={{ width: `${amount * 100}%` }}>
-                  <Star className={`${starClass} fill-[#f5c518] text-[#f5c518]`} />
+                  <Star className={`${starClass} fill-x text-x`} />
                 </span>
               </span>
               {readOnly ? null : (
@@ -87,7 +87,7 @@ export function StarRating({
             }
             onChange?.(snapped)
           }}
-          className="h-11 w-16 rounded-lg border bg-card text-center text-base tabular-nums"
+          className="h-11 w-16 rounded-md border border-input bg-transparent text-center text-base tabular-nums"
         />
       )}
     </div>

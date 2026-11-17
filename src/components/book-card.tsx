@@ -4,8 +4,8 @@ import { averageRating, countReads } from '@/lib/model'
 import { inkFor, paletteColor } from '@/lib/palette'
 import { useShelf } from '@/lib/store'
 import type { Book } from '@/lib/types'
+import { Avatar } from '@/components/avatar-editor'
 import { StarRating } from '@/components/star-rating'
-import { Button } from '@/components/ui/button'
 
 export function BookCard({
   book,
@@ -33,7 +33,7 @@ export function BookCard({
 
   return (
     <article
-      className={`rounded-3xl border bg-card p-3 shadow-[0_18px_40px_-28px_rgba(70,42,18,0.65)] sm:p-4 ${onOpen ? 'cursor-pointer' : ''}`}
+      className={`border-b border-border px-4 py-3 ${onOpen ? 'cursor-pointer active:bg-muted/70' : ''}`}
       onClick={(event) => {
         if (!onOpen) return
         const target = event.target
@@ -41,131 +41,103 @@ export function BookCard({
         onOpen(book.id)
       }}
     >
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h2
-            data-testid="book-title"
-            className="font-serif text-[1.45rem] leading-tight font-bold tracking-tight text-balance"
-          >
-            {book.title}
-          </h2>
-          <p className="mt-1.5 inline-flex max-w-full rounded-full border px-3 py-1 text-sm text-muted-foreground">
-            <span className="truncate">{book.author || '저자 미상'}</span>
-          </p>
-          {average !== null ? (
-            <div className="mt-2">
-              <StarRating value={average} readOnly size="sm" />
-            </div>
-          ) : null}
-          {onOpen ? <p className="mt-2 text-sm font-medium text-primary">한줄평 보기</p> : null}
-        </div>
-        <Button
-          type="button"
-          variant="outline"
-          className="h-11 shrink-0 px-3 text-base"
-          onClick={() => onEdit(book)}
-        >
-          수정
-        </Button>
-      </div>
-
-      <div className="mt-3 flex items-start gap-3">
-        <div className="w-[6.75rem] shrink-0 sm:w-32">
+      <div className="flex items-start gap-3">
+        <div className="w-[5.5rem] shrink-0">
           {book.coverUrl && !brokenCover ? (
             <img
               src={book.coverUrl}
               alt=""
               referrerPolicy="no-referrer"
-              className="aspect-[2/3] w-full rounded-xl object-cover shadow-md"
+              className="aspect-[2/3] w-full rounded-md object-cover"
               onError={() => setBrokenCover(true)}
             />
           ) : (
-            <div className="flex aspect-[2/3] w-full flex-col items-center justify-center gap-2 rounded-xl border bg-secondary text-muted-foreground shadow-inner">
-              <ImageOff className="size-5" />
-              <span className="px-2 text-center text-[11px] leading-tight">표지 없음</span>
+            <div className="flex aspect-[2/3] w-full flex-col items-center justify-center gap-1 rounded-md bg-muted text-muted-foreground">
+              <ImageOff className="size-4" />
+              <span className="px-1 text-center text-[11px] leading-tight">표지 없음</span>
             </div>
           )}
         </div>
 
         <div className="min-w-0 flex-1">
-          <div className="flex items-baseline justify-between gap-2">
-            <p className="text-xs font-medium tracking-wide text-muted-foreground">읽은 사람</p>
-            <p className="text-xs tabular-nums text-muted-foreground">
-              {readCount}/{friends.length}
-            </p>
+          <div className="flex items-start justify-between gap-2">
+            <h2 data-testid="book-title" className="min-w-0 text-[17px] leading-snug font-bold tracking-tight">
+              {book.title}
+            </h2>
+            <button
+              type="button"
+              className="h-11 shrink-0 px-2 text-[15px] font-bold text-x"
+              onClick={() => onEdit(book)}
+            >
+              수정
+            </button>
           </div>
-          <div
-            className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-muted"
-            role="img"
-            aria-label={`${friends.length}명 중 ${readCount}명이 읽음`}
-          >
-            <div
-              className="h-full rounded-full bg-primary transition-[width]"
-              style={{ width: friends.length ? `${(readCount / friends.length) * 100}%` : '0%' }}
-            />
-          </div>
-          <div className="mt-2 flex flex-wrap gap-1.5">
-            {friends.map((friend) => {
-              const checked = Boolean(shelf.data.reads[book.id]?.[friend.id])
-              const swatch = paletteColor(friend.color)
-              return (
-                <button
-                  key={friend.id}
-                  type="button"
-                  role="checkbox"
-                  aria-checked={checked}
-                  aria-label={`${friend.name}, ${book.title}, ${checked ? '읽음. 다시 누르면 해제' : '아직 안 읽음'}`}
-                  data-testid={`read-${book.id}-${friend.id}`}
-                  onClick={() => void shelf.toggleRead(book.id, friend.id)}
-                  className="inline-flex h-12 min-w-12 items-center justify-center gap-1 rounded-2xl border px-2.5 text-[15px] font-semibold active:scale-[0.97]"
-                  style={
-                    checked
-                      ? { backgroundColor: swatch.hex, borderColor: swatch.hex, color: inkFor(swatch.hex) }
-                      : undefined
-                  }
-                >
-                  {checked ? <Check className="size-4" strokeWidth={3} /> : null}
-                  {friend.name}
-                </button>
-              )
-            })}
-          </div>
-          <p className="mt-3 text-xs font-medium text-muted-foreground">구매자</p>
-          <p className="mt-0.5 flex items-center gap-1.5 text-sm font-semibold">
+          <p className="truncate text-[15px] text-muted-foreground">{book.author || '저자 미상'}</p>
+          {average !== null ? (
+            <div className="mt-1">
+              <StarRating value={average} readOnly size="sm" />
+            </div>
+          ) : null}
+          <p className="mt-2 flex min-h-11 items-center gap-2 text-[15px]">
             {buyer ? (
               <>
-                <span
-                  className="size-2.5 rounded-full"
-                  style={{ backgroundColor: paletteColor(buyer.color).hex }}
-                />
-                {buyer.name}
+                <Avatar name={buyer.name} photo={buyer.photo} size={24} />
+                <span className="truncate font-semibold">{buyer.name}</span>
+                <span className="text-muted-foreground">구매</span>
               </>
             ) : (
-              <span className="font-normal text-muted-foreground">아직 없어요</span>
+              <span className="text-muted-foreground">구매자 없음</span>
             )}
+          </p>
+          <p className="text-[13px] text-muted-foreground">
+            읽음 {readCount}/{friends.length}
           </p>
         </div>
       </div>
 
-      <div className="mt-3">
+      <div className="mt-2 flex flex-wrap gap-2">
+        {friends.map((friend) => {
+          const checked = Boolean(shelf.data.reads[book.id]?.[friend.id])
+          const swatch = paletteColor(friend.color)
+          return (
+            <button
+              key={friend.id}
+              type="button"
+              role="checkbox"
+              aria-checked={checked}
+              aria-label={`${friend.name}, ${book.title}, ${checked ? '읽음. 다시 누르면 해제' : '아직 안 읽음'}`}
+              data-testid={`read-${book.id}-${friend.id}`}
+              onClick={() => void shelf.toggleRead(book.id, friend.id)}
+              className="inline-flex h-11 min-w-11 items-center justify-center gap-1 rounded-full px-3 text-[15px] font-bold"
+              style={
+                checked
+                  ? { backgroundColor: swatch.hex, color: inkFor(swatch.hex) }
+                  : { backgroundColor: 'transparent', color: swatch.hex, boxShadow: `inset 0 0 0 1px ${swatch.hex}` }
+              }
+            >
+              {checked ? <Check className="size-4" strokeWidth={3} /> : null}
+              {friend.name}
+            </button>
+          )
+        })}
+      </div>
+
+      <div className="mt-2">
         {reader && readerSwatch ? (
-          <div
-            className="flex h-12 overflow-hidden rounded-full"
-            style={{ backgroundColor: readerSwatch.hex, color: inkFor(readerSwatch.hex) }}
-            data-testid={`reading-${book.id}`}
-          >
+          <div className="flex min-h-11 items-center gap-2" data-testid={`reading-${book.id}`}>
             <button
               type="button"
-              className="flex min-w-0 flex-1 items-center gap-2 px-3 text-left"
+              className="flex h-11 min-w-0 flex-1 items-center gap-2 rounded-full px-3 text-left text-[15px] font-bold"
+              style={{ backgroundColor: readerSwatch.hex, color: inkFor(readerSwatch.hex) }}
               onClick={() => setPicking((open) => !open)}
               aria-expanded={picking}
             >
-              <span className="text-xs font-medium opacity-90">지금 읽는 중</span>
-              <span className="truncate text-base font-semibold">{reader.name}</span>
+              <span className="shrink-0 text-[13px] font-medium opacity-90">읽는 중</span>
+              <span className="truncate">{reader.name}</span>
             </button>
             <button
               type="button"
-              className="h-12 shrink-0 px-4 text-sm font-semibold underline-offset-2 hover:underline"
+              className="h-11 shrink-0 rounded-full px-3 text-[15px] font-bold text-muted-foreground"
               onClick={() => {
                 setPicking(false)
                 void shelf.setReading(book.id, null)
@@ -177,7 +149,7 @@ export function BookCard({
         ) : (
           <button
             type="button"
-            className="flex h-12 w-full items-center justify-center rounded-full border border-dashed text-sm font-medium text-muted-foreground"
+            className="flex h-11 w-full items-center justify-center rounded-full text-[15px] font-bold text-x ring-1 ring-inset ring-x/40"
             data-testid={`reading-${book.id}`}
             aria-expanded={picking}
             onClick={() => setPicking((open) => !open)}
@@ -186,9 +158,9 @@ export function BookCard({
           </button>
         )}
         {picking ? (
-          <div className="mt-2 rounded-2xl border bg-secondary/60 p-2">
-            <p className="px-1 pb-1.5 text-xs text-muted-foreground">누가 읽고 있는지 눌러 주세요. 같은 이름을 다시 누르면 해제돼요.</p>
-            <div className="flex flex-wrap gap-1.5">
+          <div className="mt-2 border-t border-border pt-2">
+            <p className="pb-2 text-[13px] text-muted-foreground">누가 읽고 있는지 눌러 주세요.</p>
+            <div className="flex flex-wrap gap-2">
               {friends.map((friend) => {
                 const active = friend.id === readerId
                 const swatch = paletteColor(friend.color)
@@ -196,11 +168,11 @@ export function BookCard({
                   <button
                     key={friend.id}
                     type="button"
-                    className="inline-flex h-11 items-center rounded-full border px-3 text-sm font-semibold"
+                    className="inline-flex h-11 items-center rounded-full px-3 text-[15px] font-bold"
                     style={
                       active
-                        ? { backgroundColor: swatch.hex, borderColor: swatch.hex, color: inkFor(swatch.hex) }
-                        : undefined
+                        ? { backgroundColor: swatch.hex, color: inkFor(swatch.hex) }
+                        : { color: swatch.hex, boxShadow: `inset 0 0 0 1px ${swatch.hex}` }
                     }
                     onClick={() => {
                       setPicking(false)

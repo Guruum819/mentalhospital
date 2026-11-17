@@ -135,7 +135,7 @@ export function AppDrawer({
         }}
       />
       <aside
-        className="fixed top-0 bottom-0 left-0 z-50 flex w-[300px] flex-col bg-background shadow-2xl"
+        className="fixed top-0 bottom-0 left-0 z-50 flex w-[300px] max-w-[84vw] flex-col border-r border-border bg-background"
         style={{
           transform: `translateX(${shown - WIDTH}px)`,
           transition: dragging ? 'none' : 'transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1)',
@@ -147,7 +147,7 @@ export function AppDrawer({
       >
         <div className="px-4 pt-[max(1.25rem,env(safe-area-inset-top))]">
           <Avatar name={me.name} photo={me.photo} size={56} />
-          <p className="mt-3 text-xl font-extrabold tracking-tight">{me.name}</p>
+          <p className="mt-3 truncate text-xl font-extrabold tracking-tight">{me.name}</p>
           <div className="mt-4 flex items-center gap-3">
               {others.map((friend) => (
                 <button
@@ -177,11 +177,11 @@ export function AppDrawer({
               </button>
             </div>
         </div>
-        <nav className="mt-5 border-t">
-          <button type="button" className="flex h-14 w-full items-center gap-4 px-4 text-left text-lg" onClick={() => { toggle(false); onProfile() }}>
+        <nav className="mt-5 border-t border-border">
+          <button type="button" className="flex h-14 w-full items-center gap-4 px-4 text-left text-[17px] font-bold hover:bg-muted" onClick={() => { toggle(false); onProfile() }}>
             <UserRound className="size-5" /> 프로필
           </button>
-          <button type="button" className="flex h-14 w-full items-center gap-4 px-4 text-left text-lg" onClick={() => { toggle(false); onSettings() }}>
+          <button type="button" className="flex h-14 w-full items-center gap-4 px-4 text-left text-[17px] font-bold hover:bg-muted" onClick={() => { toggle(false); onSettings() }}>
             <Settings className="size-5" /> 설정
           </button>
         </nav>

@@ -55,7 +55,7 @@ export function ShelfScreen() {
     return (
       <main className="grid min-h-dvh place-items-center px-6 text-center">
         <div>
-          <p className="font-serif text-2xl">서재를 펼치는 중</p>
+          <p className="text-xl font-bold">서재를 펼치는 중</p>
         </div>
       </main>
     )
@@ -65,7 +65,7 @@ export function ShelfScreen() {
     return (
       <main className="grid min-h-dvh place-items-center px-6 text-center">
         <div className="max-w-sm">
-          <p className="font-serif text-2xl">서재를 열지 못했어요</p>
+          <p className="text-xl font-bold">서재를 열지 못했어요</p>
           <p className="mt-2 text-sm text-muted-foreground">{shelf.error}</p>
           <Button type="button" className="mt-4 h-12 px-5 text-base" onClick={() => window.location.reload()}>
             다시 시도
@@ -175,7 +175,7 @@ export function ShelfScreen() {
       }}
     >
       {(openDrawer) => (
-    <div className="mx-auto flex min-h-dvh w-full max-w-3xl flex-col pb-[max(1.25rem,env(safe-area-inset-bottom))]">
+    <div className="mx-auto flex min-h-dvh w-full max-w-[600px] flex-col">
       {page === 'profile' ? (
         <ProfilePage me={me} onBack={() => setPage('home')} onEdit={() => setAccount('edit')} />
       ) : page === 'settings' ? (
@@ -192,36 +192,34 @@ export function ShelfScreen() {
         <BookDetail book={detail} me={me} onBack={() => setDetailId(null)} onEdit={(item) => { setEditingBook(item); setBookOpen(true) }} />
       ) : (
       <>
-      <header className="sticky top-0 z-20 flex h-14 items-center border-b bg-background/90 px-1 backdrop-blur">
-        <button type="button" className="grid size-11 place-items-center" aria-label="메뉴" onClick={openDrawer}>
-          <Avatar name={me.name} photo={me.photo} size={34} />
-        </button>
-        <h1 className="flex-1 text-center text-lg font-extrabold tracking-tight">교환독서</h1>
-        <span className="grid size-11 place-items-center">
-          <Status mode={shelf.mode} connected={shelf.connected} />
-        </span>
+      <header className="sticky top-0 z-20 border-b border-border bg-background/80 backdrop-blur-md pt-[env(safe-area-inset-top)]">
+        <div className="relative flex h-14 items-center">
+          <button type="button" className="relative z-10 grid size-11 place-items-center" aria-label="메뉴" onClick={openDrawer}>
+            <Avatar name={me.name} photo={me.photo} size={32} />
+          </button>
+          <h1 className="pointer-events-none absolute inset-x-14 truncate text-center text-[17px] font-bold tracking-tight">교환독서</h1>
+          <span className="relative z-10 ml-auto">
+            <Status mode={shelf.mode} connected={shelf.connected} />
+          </span>
+        </div>
       </header>
-      <div className="px-3 pt-3 sm:px-5">
       {shelf.mode === 'demo' ? (
-        <p className="mb-3 rounded-2xl border border-amber-700/20 bg-amber-50 px-3 py-2 text-center text-sm text-amber-950">
-          이 브라우저 데모예요. 탭끼리는 바로 맞춰지고, 다른 폰과 맞추려면 Firebase를 연결한 뒤 GitHub Pages로 열면 돼요.
+        <p className="border-b border-border px-4 py-2 text-[13px] text-muted-foreground">
+          이 브라우저 데모예요. 다른 폰과 맞추려면 Firebase를 연결하세요.
         </p>
       ) : null}
       {shelf.error ? (
-        <p className="mb-3 rounded-2xl border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm">{shelf.error}</p>
+        <p className="border-b border-border px-4 py-2 text-sm text-destructive">{shelf.error}</p>
       ) : null}
-
-      <p className="text-sm text-muted-foreground">이름을 누르면 읽음, 다시 누르면 해제돼요.</p>
-      <p className="mt-3 text-sm text-muted-foreground">
-        책 {stats.bookCount}권 · 친구 {stats.friendCount}명
-        {stats.totalCells > 0 ? ` · ${stats.readCells}/${stats.totalCells} 읽음` : ''}
+      <p className="border-b border-border px-4 py-2 text-[13px] text-muted-foreground">
+        이름을 누르면 읽음 · 책 {stats.bookCount}권 · 친구 {stats.friendCount}명
+        {stats.totalCells > 0 ? ` · ${stats.readCells}/${stats.totalCells}` : ''}
       </p>
-
-      <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
+      <div className="flex gap-2 overflow-x-auto border-b border-border px-4 py-2">
         {shelf.data.friends.map((friend) => (
           <span
             key={friend.id}
-            className="inline-flex h-11 shrink-0 items-center gap-1.5 rounded-full border bg-card px-3 text-sm font-medium"
+            className="inline-flex h-11 shrink-0 items-center gap-1.5 text-[15px] font-bold"
           >
             <span className="size-2.5 rounded-full" style={{ backgroundColor: paletteColor(friend.color).hex }} />
             {friend.name}
@@ -229,18 +227,11 @@ export function ShelfScreen() {
           </span>
         ))}
       </div>
-
-      <div className="mt-3">
-        <Button type="button" className="h-12 w-full text-base" onClick={() => { setEditingBook(null); setBookOpen(true) }}>
-          <Plus className="size-4" /> 책 추가
-        </Button>
-      </div>
-
-      <div className="mt-4 space-y-3">
+      <div className="pb-28">
         {shelf.data.books.length === 0 ? (
-          <div className="rounded-3xl border border-dashed px-4 py-10 text-center">
-            <p className="font-serif text-xl">아직 책이 없어요</p>
-            <p className="mt-1 text-sm text-muted-foreground">제목을 검색하면 표지와 저자가 같이 들어와요.</p>
+          <div className="px-8 py-16 text-center">
+            <p className="text-xl font-bold">아직 책이 없어요</p>
+            <p className="mt-1 text-[15px] text-muted-foreground">오른쪽 아래 + 로 책을 올려요.</p>
           </div>
         ) : (
           shelf.data.books.map((book) => (
@@ -256,8 +247,14 @@ export function ShelfScreen() {
           ))
         )}
       </div>
-
-      </div>
+      <button
+        type="button"
+        aria-label="책 추가"
+        className="fixed right-4 bottom-[max(1rem,env(safe-area-inset-bottom))] z-30 grid size-14 place-items-center rounded-full bg-x text-white shadow-[0_4px_16px_rgba(29,155,240,0.45)]"
+        onClick={() => { setEditingBook(null); setBookOpen(true) }}
+      >
+        <Plus className="size-7" strokeWidth={2.5} />
+      </button>
       </>
       )}
       <BookDialog open={bookOpen} book={editingBook} onOpenChange={setBookOpen} />
@@ -289,7 +286,7 @@ function confirmText(confirm: Confirm) {
 function Status({ mode, connected }: { mode: 'demo' | 'firebase'; connected: boolean }) {
   if (mode === 'demo') {
     return (
-      <span data-testid="sync-status" role="status" className="hidden rounded-full border bg-card px-2.5 py-2 text-xs text-muted-foreground sm:inline">
+      <span data-testid="sync-status" role="status" className="inline-flex h-11 items-center gap-1 pr-3 text-[13px] font-medium text-muted-foreground">
         이 브라우저
       </span>
     )
@@ -298,9 +295,9 @@ function Status({ mode, connected }: { mode: 'demo' | 'firebase'; connected: boo
     <span
       data-testid="sync-status"
       role="status"
-      className="inline-flex items-center gap-1.5 rounded-full border bg-card px-2.5 py-2 text-xs"
+      className="inline-flex h-11 items-center gap-1.5 pr-3 text-[13px] font-medium text-muted-foreground"
     >
-      <span className={`size-1.5 rounded-full ${connected ? 'bg-emerald-700' : 'bg-amber-600'}`} />
+      <span className={`size-2 rounded-full ${connected ? 'bg-x' : 'bg-muted-foreground'}`} />
       {connected ? '실시간' : '연결 중'}
     </span>
   )
@@ -323,8 +320,8 @@ function LockScreen() {
 
   return (
     <main className="grid min-h-dvh place-items-center px-5">
-      <form onSubmit={onSubmit} className="w-full max-w-sm rounded-3xl border bg-card p-5 shadow-sm">
-        <h1 className="font-serif text-3xl">교환독서</h1>
+      <form onSubmit={onSubmit} className="w-full max-w-sm">
+        <h1 className="text-[28px] font-extrabold tracking-tight">교환독서</h1>
         <p className="mt-1 text-sm text-muted-foreground">친구들에게 받은 암호를 입력해요.</p>
         <Label htmlFor="lock-pass" className="mt-4">암호</Label>
         <Input
@@ -379,7 +376,7 @@ function PasscodeDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (
       <DialogContent>
         <form onSubmit={save} className="grid gap-3" key={String(open)}>
           <DialogHeader>
-            <DialogTitle className="font-serif text-xl">그룹 암호</DialogTitle>
+            <DialogTitle>그룹 암호</DialogTitle>
             <DialogDescription>링크를 연 사람에게 한 번 더 묻는 잠금이에요. 책을 암호화하지는 않아요.</DialogDescription>
           </DialogHeader>
           {hasPasscode ? (
@@ -413,7 +410,7 @@ function GuideDialog({ open, onOpenChange, demo }: { open: boolean; onOpenChange
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle className="font-serif text-xl">이렇게 써요</DialogTitle>
+          <DialogTitle>이렇게 써요</DialogTitle>
           <DialogDescription>친구끼리만 보는 서재예요.</DialogDescription>
         </DialogHeader>
         <ul className="space-y-2 text-sm leading-relaxed">

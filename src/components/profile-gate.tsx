@@ -42,11 +42,11 @@ export function ProfileGate({
 
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col px-4 pt-[max(1.25rem,env(safe-area-inset-top))] pb-8">
-      <h1 className="font-serif text-3xl font-bold">교환독서</h1>
+      <h1 className="text-[31px] font-extrabold tracking-tight">교환독서</h1>
       {mode === 'login' && !nobody ? (
         <form onSubmit={login} className="mt-6 grid gap-4">
           <div>
-            <h2 className="font-serif text-xl">로그인</h2>
+            <h2 className="text-xl font-bold">로그인</h2>
             <p className="mt-1 text-sm text-muted-foreground">이 폰에서 쓸 이름과 생일을 입력해요.</p>
           </div>
           <div className="space-y-1.5">
@@ -72,7 +72,7 @@ export function ProfileGate({
         </form>
       ) : (
         <div className="mt-6">
-          <h2 className="font-serif text-xl">{mode === 'edit' ? '프로필 수정' : '프로필 만들기'}</h2>
+          <h2 className="text-xl font-bold">{mode === 'edit' ? '프로필 수정' : '프로필 만들기'}</h2>
           <div className="mt-4">
             <ProfileForm
               friend={mode === 'edit' ? me : null}

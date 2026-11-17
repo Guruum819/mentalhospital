@@ -96,7 +96,7 @@ export function ProfileForm({
                 className="size-11 rounded-full disabled:opacity-30"
                 style={{
                   backgroundColor: swatch.hex,
-                  boxShadow: selected ? '0 0 0 2px #fffaf5, 0 0 0 4px #2b2416' : undefined,
+                  boxShadow: selected ? '0 0 0 2px var(--background), 0 0 0 4px #1d9bf0' : undefined,
                 }}
                 onClick={() => setColor(swatch.id)}
               />

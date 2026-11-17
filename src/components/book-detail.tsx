@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react'
+import { ChevronLeft } from 'lucide-react'
 import { averageRating, MAX_REVIEW } from '@/lib/model'
 import { useShelf } from '@/lib/store'
 import type { Book, Friend } from '@/lib/types'
@@ -39,65 +40,69 @@ export function BookDetail({
   }
 
   return (
-    <div className="mx-auto flex min-h-dvh w-full max-w-3xl flex-col px-3 pt-[max(0.75rem,env(safe-area-inset-top))] pb-8 sm:px-5">
-      <Button type="button" variant="outline" className="h-11 w-fit px-3" onClick={onBack}>
-        서재로
-      </Button>
-      <div className="mt-3">
-        <BookCard book={book} onEdit={onEdit} />
-      </div>
-      <section className="mt-4">
-        <div className="flex items-center justify-between gap-3">
-          <h2 className="font-serif text-2xl">한줄평</h2>
+    <div className="mx-auto flex min-h-dvh w-full max-w-[600px] flex-col">
+      <header className="sticky top-0 z-20 border-b border-border bg-background/80 backdrop-blur-md pt-[env(safe-area-inset-top)]">
+        <div className="relative flex h-14 items-center">
+          <button type="button" className="grid size-11 place-items-center" onClick={onBack} aria-label="서재로">
+            <ChevronLeft className="size-6" />
+          </button>
+          <h1 className="pointer-events-none absolute inset-x-14 truncate text-center text-[17px] font-bold">한줄평</h1>
+        </div>
+      </header>
+      <BookCard book={book} onEdit={onEdit} />
+      <section>
+        <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
+          <h2 className="text-[17px] font-bold">한줄평</h2>
           {average !== null ? <StarRating value={average} readOnly size="sm" /> : null}
         </div>
-        <form onSubmit={onSubmit} className="mt-3 rounded-3xl border bg-card p-3">
+        <form onSubmit={onSubmit} className="border-b border-border px-4 py-3">
           <StarRating value={rating} onChange={setRating} />
-          {rating === null ? <p className="mt-1 text-xs text-muted-foreground">별을 누르거나 숫자를 입력해요. 0.5 단위예요.</p> : null}
+          {rating === null ? <p className="mt-1 text-[13px] text-muted-foreground">별을 누르거나 숫자를 입력해요. 0.5 단위예요.</p> : null}
           <div className="mt-3 flex gap-3">
             <Avatar name={me.name} photo={me.photo} size={40} />
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold">{me.name}</p>
+              <p className="text-[15px] font-bold">{me.name}</p>
               <textarea
                 value={text}
                 onChange={(event) => setText(event.target.value)}
                 maxLength={MAX_REVIEW}
                 rows={3}
-                placeholder="짧게 남겨 주세요"
-                className="mt-1 w-full resize-none bg-transparent text-base outline-none placeholder:text-muted-foreground"
+                placeholder="무슨 일이 일어나고 있나요?"
+                className="mt-1 w-full resize-none bg-transparent text-[17px] outline-none placeholder:text-muted-foreground"
               />
             </div>
           </div>
           <div className="mt-2 flex items-center justify-between">
-            <p className="text-xs tabular-nums text-muted-foreground">
+            <p className="text-[13px] tabular-nums text-muted-foreground">
               {chars}/{MAX_REVIEW}
             </p>
-            <Button type="submit" className="h-11 px-4" disabled={pending || !text.trim() || chars > MAX_REVIEW || rating === null}>
+            <Button type="submit" className="h-9 bg-x px-4 text-white hover:bg-x/90" disabled={pending || !text.trim() || chars > MAX_REVIEW || rating === null}>
               올리기
             </Button>
           </div>
         </form>
         {reviews.length === 0 ? (
-          <p className="mt-4 text-sm text-muted-foreground">아직 한줄평이 없어요.</p>
+          <p className="px-4 py-8 text-[15px] text-muted-foreground">아직 한줄평이 없어요.</p>
         ) : (
-          <ul className="mt-2 divide-y">
+          <ul>
             {reviews.map((review) => {
               const author = shelf.data.friends.find((friend) => friend.id === review.friendId)
               return (
-                <li key={review.id} className="flex gap-3 py-3">
+                <li key={review.id} className="flex gap-3 border-b border-border px-4 py-3">
                   <Avatar name={author?.name ?? '?'} photo={author?.photo ?? null} size={40} />
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-baseline justify-between gap-2">
-                      <p className="truncate text-sm font-semibold">{author?.name ?? '알 수 없음'}</p>
-                      <time className="shrink-0 text-xs text-muted-foreground">
+                    <div className="flex items-baseline gap-2">
+                      <p className="truncate text-[15px] font-bold">{author?.name ?? '알 수 없음'}</p>
+                      <time className="shrink-0 text-[13px] text-muted-foreground">
                         {new Intl.DateTimeFormat('ko', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }).format(review.createdAt)}
                       </time>
                     </div>
+                    <StarRating value={review.rating} readOnly size="sm" />
                     <p className="mt-1 text-[15px] leading-snug whitespace-pre-wrap">{review.text}</p>
                     {review.friendId === me.id ? (
                       <button
                         type="button"
-                        className="mt-1 text-sm text-muted-foreground underline"
+                        className="mt-1 h-11 text-[15px] font-medium text-muted-foreground"
                         onClick={() => void shelf.deleteReview(review.id)}
                       >
                         삭제
