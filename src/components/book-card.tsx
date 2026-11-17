@@ -151,31 +151,43 @@ export function BookCard({
               </div>
             ) : null}
           </div>
-          <p data-testid="book-holder" className="mt-0.5 text-[13px] text-muted-foreground">
-            {holder ? (
-              <>
-                지금{' '}
-                <span className="font-bold" style={{ color: paletteColor(holder.color).hex }}>
-                  {holding ? '내가' : holder.name}
-                </span>
-                {holding ? ' ' : '님이 '}갖고 있어용
-              </>
-            ) : (
-              '지금 갖고 있는 사람이 없어용'
-            )}
-          </p>
-          {transfer ? (
-            <p data-testid="pending-pass" className="mt-0.5 text-[13px] font-medium text-foreground">
-              {pendingPassLine(pendingName ?? '친구')}
+          <div className="mt-1">
+            <p data-testid="book-holder" className="text-[13px] text-muted-foreground">
+              {holder ? (
+                <>
+                  지금{' '}
+                  <span className="font-bold" style={{ color: paletteColor(holder.color).hex }}>
+                    {holding ? '내가' : holder.name}
+                  </span>
+                  {holding ? ' ' : '님이 '}갖고 있어용
+                </>
+              ) : (
+                '지금 갖고 있는 사람이 없어용'
+              )}
             </p>
-          ) : null}
-          <p className="truncate text-[15px] text-muted-foreground">{book.author || '저자 미상'}</p>
+            {transfer ? (
+              <p data-testid="pending-pass" className="mt-0.5 text-[13px] font-medium text-foreground">
+                {pendingPassLine(pendingName ?? '친구')}
+              </p>
+            ) : null}
+            <CardActions
+              holding={holding}
+              transfer={transfer}
+              meId={meId}
+              admin={shelf.admin}
+              onPass={() => setPassOpen(true)}
+              onCancel={() => void shelf.cancelOffer(book.id)}
+              onAccept={() => void shelf.acceptOffer(book.id)}
+              onDecline={() => void shelf.declineOffer(book.id)}
+            />
+          </div>
+          <p className="mt-2 truncate text-[15px] text-muted-foreground">{book.author || '저자 미상'}</p>
           {average !== null ? (
             <div className="mt-1">
               <StarRating value={average} readOnly size="sm" />
             </div>
           ) : null}
-          <div className="mt-2 flex min-h-11 items-center gap-2 text-[15px]">
+          <div className="mt-2 flex items-center gap-2 text-[15px]">
             {buyer ? (
               <button
                 type="button"
@@ -193,102 +205,12 @@ export function BookCard({
         </div>
       </div>
 
-      <div className="mt-3 space-y-2">
-        {reader && readerSwatch && !mineReading ? (
-        <div className="space-y-1">
-            <div className="flex items-center gap-2">
-              <div
-                className={`flex h-11 min-w-0 flex-1 items-center gap-2 rounded-full px-3 text-[15px] font-bold ${poking ? 'nudge-poke' : ''}`}
-                data-testid={`reading-${book.id}`}
-                style={{ backgroundColor: readerSwatch.hex, color: inkFor(readerSwatch.hex) }}
-              >
-                <span className="shrink-0 text-[13px] font-medium opacity-90">읽는 중</span>
-                <span className="truncate">{reader.name}</span>
-              </div>
-              {canNudge ? (
-                <button
-                  type="button"
-                  data-testid="nudge-reader"
-                  className="h-11 shrink-0 rounded-full bg-x px-3 text-[13px] font-bold text-white disabled:opacity-50"
-                  disabled={outOfNudges}
-                  onClick={() => {
-                    void shelf.nudge(book.id).then((ok) => {
-                      if (!ok) return
-                      setPoking(true)
-                      window.setTimeout(() => setPoking(false), 640)
-                    })
-                  }}
-                >
-                  <span className={`inline-block ${poking ? 'nudge-poke' : ''}`} aria-hidden>👉</span> 독촉
-                </button>
-              ) : null}
-            </div>
-            {canNudge ? (
-              <p data-testid="nudge-remaining" className="px-1 text-[13px] font-medium text-muted-foreground">
-                {nudgeAllowanceLine(remaining)}
-              </p>
-            ) : null}
-          </div>
-      ) : null}
-      {holding && (mineReading || !reader) ? (
-        mineReading && reader && readerSwatch ? (
-          <div className="flex min-h-11 items-center gap-2" data-testid={`reading-${book.id}`}>
-            <button
-              type="button"
-              className="flex h-11 min-w-0 flex-1 items-center gap-2 rounded-full px-3 text-[15px] font-bold"
-              style={{ backgroundColor: readerSwatch.hex, color: inkFor(readerSwatch.hex) }}
-              onClick={() => setChoiceOpen(true)}
-            >
-              <span className="shrink-0 text-[13px] font-medium opacity-90">읽는 중</span>
-              <span className="truncate">{reader.name}</span>
-            </button>
-            <button
-              type="button"
-              className="h-11 shrink-0 rounded-full px-3 text-[15px] font-bold text-muted-foreground"
-              onClick={() => void shelf.setReading(book.id, null)}
-            >
-              해제
-            </button>
-          </div>
-        ) : mineRead && meSwatch ? (
-          <button
-            type="button"
-            className="flex h-11 w-full items-center justify-center gap-2 rounded-full px-3 text-[15px] font-bold"
-            data-testid={`finished-${book.id}`}
-            style={{ backgroundColor: meSwatch.hex, color: inkFor(meSwatch.hex) }}
-            onClick={() => setChoiceOpen(true)}
-          >
-            <span aria-hidden>✦</span>
-            독서 완료!
-          </button>
-        ) : (
-          <button
-            type="button"
-            className="flex h-11 w-full items-center justify-center rounded-full text-[15px] font-bold text-x ring-1 ring-inset ring-x/40"
-            data-testid={`reading-${book.id}`}
-            onClick={() => setChoiceOpen(true)}
-          >
-            읽는 중
-          </button>
-        )
-      ) : null}
-        <div className="flex items-center justify-between gap-2">
-          <p className="shrink-0 text-[13px] text-muted-foreground">
-            읽음 {readCount}/{friends.length}
-          </p>
-          <CardActions
-            holding={holding}
-            transfer={transfer}
-            meId={meId}
-            admin={shelf.admin}
-            onPass={() => setPassOpen(true)}
-            onCancel={() => void shelf.cancelOffer(book.id)}
-            onAccept={() => void shelf.acceptOffer(book.id)}
-            onDecline={() => void shelf.declineOffer(book.id)}
-          />
-        </div>
+      <div className="mt-4">
+        <p className="text-[13px] text-muted-foreground">
+          읽음 {readCount}/{friends.length}
+        </p>
         <div
-          className="grid gap-1.5"
+          className="mt-1.5 grid gap-1.5"
           style={{ gridTemplateColumns: `repeat(${chipColumns(friends.length)}, minmax(0, 1fr))` }}
         >
           {friends.map((friend) => {
@@ -340,6 +262,84 @@ export function BookCard({
           })}
         </div>
       </div>
+      {reader && readerSwatch && !mineReading ? (
+        <div className="mt-3 space-y-1">
+            <div className="flex items-center gap-2">
+              <div
+                className={`flex h-11 min-w-0 flex-1 items-center gap-2 rounded-full px-3 text-[15px] font-bold ${poking ? 'nudge-poke' : ''}`}
+                data-testid={`reading-${book.id}`}
+                style={{ backgroundColor: readerSwatch.hex, color: inkFor(readerSwatch.hex) }}
+              >
+                <span className="shrink-0 text-[13px] font-medium opacity-90">읽는 중</span>
+                <span className="truncate">{reader.name}</span>
+              </div>
+              {canNudge ? (
+                <button
+                  type="button"
+                  data-testid="nudge-reader"
+                  className="h-11 shrink-0 rounded-full bg-x px-3 text-[13px] font-bold text-white disabled:opacity-50"
+                  disabled={outOfNudges}
+                  onClick={() => {
+                    void shelf.nudge(book.id).then((ok) => {
+                      if (!ok) return
+                      setPoking(true)
+                      window.setTimeout(() => setPoking(false), 640)
+                    })
+                  }}
+                >
+                  <span className={`inline-block ${poking ? 'nudge-poke' : ''}`} aria-hidden>👉</span> 독촉
+                </button>
+              ) : null}
+            </div>
+            {canNudge ? (
+              <p data-testid="nudge-remaining" className="px-1 text-[13px] font-medium text-muted-foreground">
+                {nudgeAllowanceLine(remaining)}
+              </p>
+            ) : null}
+          </div>
+      ) : null}
+      {holding && (mineReading || !reader) ? (
+        mineReading && reader && readerSwatch ? (
+          <div className="mt-3 flex min-h-11 items-center gap-2" data-testid={`reading-${book.id}`}>
+            <button
+              type="button"
+              className="flex h-11 min-w-0 flex-1 items-center gap-2 rounded-full px-3 text-[15px] font-bold"
+              style={{ backgroundColor: readerSwatch.hex, color: inkFor(readerSwatch.hex) }}
+              onClick={() => setChoiceOpen(true)}
+            >
+              <span className="shrink-0 text-[13px] font-medium opacity-90">읽는 중</span>
+              <span className="truncate">{reader.name}</span>
+            </button>
+            <button
+              type="button"
+              className="h-11 shrink-0 rounded-full px-3 text-[15px] font-bold text-muted-foreground"
+              onClick={() => void shelf.setReading(book.id, null)}
+            >
+              해제
+            </button>
+          </div>
+        ) : mineRead && meSwatch ? (
+          <button
+            type="button"
+            className="mt-3 flex h-11 w-full items-center justify-center gap-2 rounded-full px-3 text-[15px] font-bold"
+            data-testid={`finished-${book.id}`}
+            style={{ backgroundColor: meSwatch.hex, color: inkFor(meSwatch.hex) }}
+            onClick={() => setChoiceOpen(true)}
+          >
+            <span aria-hidden>✦</span>
+            독서 완료!
+          </button>
+        ) : (
+          <button
+            type="button"
+            className="mt-3 flex h-11 w-full items-center justify-center rounded-full text-[15px] font-bold text-x ring-1 ring-inset ring-x/40"
+            data-testid={`reading-${book.id}`}
+            onClick={() => setChoiceOpen(true)}
+          >
+            읽는 중
+          </button>
+        )
+      ) : null}
       <PassBookSheet book={book} open={passOpen} onOpenChange={setPassOpen} />
       <ReadingChoice
         open={choiceOpen}
@@ -360,7 +360,7 @@ export function BookCard({
   )
 }
 
-const actionButton = 'h-10 rounded-full px-3 text-[14px] font-bold'
+const actionButton = 'h-8 shrink-0 rounded-full px-2.5 text-[13px] font-bold'
 
 function chipColumns(count: number): number {
   return Math.min(5, Math.max(count, 1))
@@ -391,7 +391,7 @@ function CardActions({
   const reassign = !holding && !transfer && admin
   if (!pass && !cancel && !answer && !reassign) return null
   return (
-    <div className="flex flex-wrap items-center gap-2">
+    <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
       {pass ? (
         <button type="button" data-testid="pass-book" className={`${actionButton} text-x ring-1 ring-inset ring-x/40`} onClick={onPass}>
           책 넘기기
