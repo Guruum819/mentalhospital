@@ -266,37 +266,37 @@ function RequestBoard({ onBack }: { onBack: () => void }) {
     <EdgeBack onBack={onBack}>
       <div className="min-h-dvh bg-background">
         <ScreenHeader title="이거 수정해 주세요!" onBack={onBack} />
-        {me ? (
-        <form onSubmit={submit} className="flex gap-3 border-b border-border px-4 py-3">
-          <Avatar name={me?.name ?? '?'} photo={me?.photo ?? null} size={40} />
-          <div className="min-w-0 flex-1">
-            <textarea
-              value={text}
-              onChange={(event) => setText(event.target.value)}
-              maxLength={MAX_REVIEW}
-              rows={3}
-              placeholder="이렇게 바꿔 주세용"
-              className="w-full resize-none bg-transparent text-[17px] outline-none placeholder:text-muted-foreground"
-            />
-            <div className="mt-2 flex items-center justify-between gap-3">
-              <label className="flex items-center gap-2 text-[15px]">
-                <Checkbox checked={anonymous} onCheckedChange={(value) => setAnonymous(value === true)} />
-                익명으로 쓰기
-              </label>
-              <span className="text-[13px] tabular-nums text-muted-foreground">
-                {chars}/{MAX_REVIEW}
-              </span>
+        {me && !shelf.admin ? (
+          <form onSubmit={submit} className="flex gap-3 border-b border-border px-4 py-3">
+            <Avatar name={me.name} photo={me.photo} size={40} />
+            <div className="min-w-0 flex-1">
+              <textarea
+                value={text}
+                onChange={(event) => setText(event.target.value)}
+                maxLength={MAX_REVIEW}
+                rows={3}
+                placeholder="이렇게 바꿔 주세용"
+                className="w-full resize-none bg-transparent text-[17px] outline-none placeholder:text-muted-foreground"
+              />
+              <div className="mt-2 flex items-center justify-between gap-3">
+                <label className="flex items-center gap-2 text-[15px]">
+                  <Checkbox checked={anonymous} onCheckedChange={(value) => setAnonymous(value === true)} />
+                  익명으로 쓰기
+                </label>
+                <span className="text-[13px] tabular-nums text-muted-foreground">
+                  {chars}/{MAX_REVIEW}
+                </span>
+              </div>
+              <div className="mt-2 flex justify-end">
+                <Button type="submit" className="h-9 bg-x px-4 text-x-ink hover:bg-x/90" disabled={pending || !text.trim() || chars > MAX_REVIEW}>
+                  올리기
+                </Button>
+              </div>
             </div>
-            <div className="mt-2 flex justify-end">
-              <Button type="submit" className="h-9 bg-x px-4 text-x-ink hover:bg-x/90" disabled={pending || !text.trim() || chars > MAX_REVIEW}>
-                올리기
-              </Button>
-            </div>
-          </div>
-        </form>
-        ) : (
+          </form>
+        ) : !shelf.admin ? (
           <p className="border-b border-border px-4 py-3 text-sm text-muted-foreground">멤버로 들어가 있지 않아서 글은 못 올리고, 답글은 달 수 있어용.</p>
-        )}
+        ) : null}
         <ul>
         {shelf.data.posts.length === 0 ? (
           <li className="px-4 py-8 text-[15px] text-muted-foreground">아직 요청이 없어용.</li>
