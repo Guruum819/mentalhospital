@@ -11,7 +11,7 @@ import { averageRating, countReads, nudgeAllowanceLine, nudgesRemaining, pending
 import { inkFor, paletteColor } from '@/lib/palette'
 import { useShelf } from '@/lib/store'
 import { toast } from 'sonner'
-import type { Book } from '@/lib/types'
+import type { Book, Transfer } from '@/lib/types'
 import { Avatar } from '@/components/avatar-editor'
 import { PassBookSheet } from '@/components/pass-book-sheet'
 import { StarRating } from '@/components/star-rating'
@@ -26,10 +26,13 @@ export function BookMenu({
   canDelete,
   onEdit,
   onDelete,
+  compact = false,
 }: {
   canDelete: boolean
   onEdit: () => void
   onDelete?: () => void
+  /** Match the title-row pill. The detail header keeps the larger target. */
+  compact?: boolean
 }) {
   return (
     <DropdownMenu>
@@ -37,7 +40,7 @@ export function BookMenu({
         <button
           type="button"
           aria-label="책 메뉴"
-          className="grid size-11 shrink-0 place-items-center rounded-full text-foreground hover:bg-muted"
+          className={`grid shrink-0 place-items-center rounded-full text-foreground hover:bg-muted ${compact ? 'size-8' : 'size-11'}`}
         >
           <MoreHorizontal className="size-5" />
         </button>
@@ -108,7 +111,7 @@ export function BookCard({
 
   return (
     <article
-      className={`border-b border-border px-4 py-3 ${onOpen ? 'cursor-pointer active:bg-muted/70' : ''}`}
+      className={`min-w-0 border-b border-border px-4 py-3 ${onOpen ? 'cursor-pointer active:bg-muted/70' : ''}`}
       onClick={(event) => {
         if (!onOpen) return
         const target = event.target
@@ -139,9 +142,13 @@ export function BookCard({
             <h2 data-testid="book-title" className="min-w-0 flex-1 text-[17px] leading-snug font-bold tracking-tight break-words">
               {book.title}
             </h2>
-            {me && !mineRead ? <QueuePill bookId={book.id} meId={meId} /> : null}
-            {book.buyerId === meId ? (
-              <BookMenu canDelete onEdit={() => onEdit(book)} onDelete={() => onDelete(book)} />
+            {(me && !mineRead) || book.buyerId === meId ? (
+              <div className="flex h-8 shrink-0 items-center justify-end gap-1">
+                {me && !mineRead ? <QueuePill bookId={book.id} meId={meId} /> : null}
+                {book.buyerId === meId ? (
+                  <BookMenu compact canDelete onEdit={() => onEdit(book)} onDelete={() => onDelete(book)} />
+                ) : null}
+              </div>
             ) : null}
           </div>
           <p data-testid="book-holder" className="mt-0.5 text-[13px] text-muted-foreground">
@@ -183,108 +190,12 @@ export function BookCard({
               <span className="text-muted-foreground">구매자가 없어용</span>
             )}
           </div>
-          <p className="text-[13px] text-muted-foreground">
-            읽음 {readCount}/{friends.length}
-          </p>
-          {holding && !transfer ? (
-            <button
-              type="button"
-              data-testid="pass-book"
-              className="mt-2 h-11 rounded-full px-3 text-[15px] font-bold text-x ring-1 ring-inset ring-x/40"
-              onClick={() => setPassOpen(true)}
-            >
-              책 넘기기
-            </button>
-          ) : null}
-          {transfer && transfer.fromId === meId ? (
-            <button
-              type="button"
-              data-testid="cancel-offer"
-              className="mt-2 h-11 rounded-full px-3 text-[15px] font-bold ring-1 ring-inset ring-foreground/30"
-              onClick={() => void shelf.cancelOffer(book.id)}
-            >
-              취소
-            </button>
-          ) : null}
-          {transfer && transfer.toId === meId ? (
-            <div className="mt-2 flex gap-2">
-              <button
-                type="button"
-                data-testid="accept-offer"
-                className="h-11 rounded-full bg-x px-3 text-[15px] font-bold text-white"
-                onClick={() => void shelf.acceptOffer(book.id)}
-              >
-                수락
-              </button>
-              <button
-                type="button"
-                data-testid="decline-offer"
-                className="h-11 rounded-full px-3 text-[15px] font-bold ring-1 ring-inset ring-foreground/30"
-                onClick={() => void shelf.declineOffer(book.id)}
-              >
-                거절
-              </button>
-            </div>
-          ) : null}
-          {!holding && !transfer && shelf.admin ? (
-            <button
-              type="button"
-              data-testid="reassign-holder"
-              className="mt-2 h-11 rounded-full px-3 text-[15px] font-bold ring-1 ring-inset ring-foreground/30"
-              onClick={() => setPassOpen(true)}
-            >
-              소장자 바꾸기
-            </button>
-          ) : null}
         </div>
       </div>
 
-      <div className="mt-2 flex flex-wrap gap-2">
-        {friends.map((friend) => {
-          const checked = Boolean(shelf.data.reads[book.id]?.[friend.id])
-          const swatch = paletteColor(friend.color)
-          const mine = friend.id === meId
-          const style = checked
-            ? { backgroundColor: swatch.hex, color: inkFor(swatch.hex) }
-            : { backgroundColor: 'transparent', color: swatch.hex, boxShadow: `inset 0 0 0 1px ${swatch.hex}` }
-          if (!mine) {
-            return (
-              <span
-                key={friend.id}
-                role="checkbox"
-                aria-checked={checked}
-                aria-label={`${friend.name}, ${book.title}, ${checked ? '읽음' : '아직 안 읽음'}`}
-                data-testid={`read-${book.id}-${friend.id}`}
-                className="inline-flex h-11 min-w-11 cursor-default items-center justify-center gap-1 rounded-full px-3 text-[15px] font-bold [-webkit-tap-highlight-color:transparent]"
-                style={style}
-                onClick={() => toast('본인 것만 체크할 수 있어용')}
-              >
-                {checked ? <Check className="size-4" strokeWidth={3} /> : null}
-                {friend.name}
-              </span>
-            )
-          }
-          return (
-            <button
-              key={friend.id}
-              type="button"
-              role="checkbox"
-              aria-checked={checked}
-              aria-label={`${friend.name}, ${book.title}, ${checked ? '읽음. 다시 누르면 빠져용' : '아직 안 읽었어용'}`}
-              data-testid={`read-${book.id}-${friend.id}`}
-              onClick={() => void shelf.toggleRead(book.id, friend.id)}
-              className="inline-flex h-11 min-w-11 items-center justify-center gap-1 rounded-full px-3 text-[15px] font-bold"
-              style={style}
-            >
-              {checked ? <Check className="size-4" strokeWidth={3} /> : null}
-              {friend.name}
-            </button>
-          )
-        })}
-      </div>
-
-      {reader && readerSwatch && !mineReading ? (
-        <div className="mt-2 space-y-1">
+      <div className="mt-3 space-y-2">
+        {reader && readerSwatch && !mineReading ? (
+        <div className="space-y-1">
             <div className="flex items-center gap-2">
               <div
                 className={`flex h-11 min-w-0 flex-1 items-center gap-2 rounded-full px-3 text-[15px] font-bold ${poking ? 'nudge-poke' : ''}`}
@@ -298,7 +209,7 @@ export function BookCard({
                 <button
                   type="button"
                   data-testid="nudge-reader"
-                  className="h-9 shrink-0 rounded-full bg-x px-3 text-[13px] font-bold text-white disabled:opacity-50"
+                  className="h-11 shrink-0 rounded-full bg-x px-3 text-[13px] font-bold text-white disabled:opacity-50"
                   disabled={outOfNudges}
                   onClick={() => {
                     void shelf.nudge(book.id).then((ok) => {
@@ -321,7 +232,7 @@ export function BookCard({
       ) : null}
       {holding && (mineReading || !reader) ? (
         mineReading && reader && readerSwatch ? (
-          <div className="mt-2 flex min-h-11 items-center gap-2" data-testid={`reading-${book.id}`}>
+          <div className="flex min-h-11 items-center gap-2" data-testid={`reading-${book.id}`}>
             <button
               type="button"
               className="flex h-11 min-w-0 flex-1 items-center gap-2 rounded-full px-3 text-[15px] font-bold"
@@ -342,7 +253,7 @@ export function BookCard({
         ) : mineRead && meSwatch ? (
           <button
             type="button"
-            className="mt-2 flex h-11 w-full items-center justify-center gap-2 rounded-full px-3 text-[15px] font-bold"
+            className="flex h-11 w-full items-center justify-center gap-2 rounded-full px-3 text-[15px] font-bold"
             data-testid={`finished-${book.id}`}
             style={{ backgroundColor: meSwatch.hex, color: inkFor(meSwatch.hex) }}
             onClick={() => setChoiceOpen(true)}
@@ -353,7 +264,7 @@ export function BookCard({
         ) : (
           <button
             type="button"
-            className="mt-2 flex h-11 w-full items-center justify-center rounded-full text-[15px] font-bold text-x ring-1 ring-inset ring-x/40"
+            className="flex h-11 w-full items-center justify-center rounded-full text-[15px] font-bold text-x ring-1 ring-inset ring-x/40"
             data-testid={`reading-${book.id}`}
             onClick={() => setChoiceOpen(true)}
           >
@@ -361,6 +272,74 @@ export function BookCard({
           </button>
         )
       ) : null}
+        <div className="flex items-center justify-between gap-2">
+          <p className="shrink-0 text-[13px] text-muted-foreground">
+            읽음 {readCount}/{friends.length}
+          </p>
+          <CardActions
+            holding={holding}
+            transfer={transfer}
+            meId={meId}
+            admin={shelf.admin}
+            onPass={() => setPassOpen(true)}
+            onCancel={() => void shelf.cancelOffer(book.id)}
+            onAccept={() => void shelf.acceptOffer(book.id)}
+            onDecline={() => void shelf.declineOffer(book.id)}
+          />
+        </div>
+        <div
+          className="grid gap-1.5"
+          style={{ gridTemplateColumns: `repeat(${chipColumns(friends.length)}, minmax(0, 1fr))` }}
+        >
+          {friends.map((friend) => {
+            const checked = Boolean(shelf.data.reads[book.id]?.[friend.id])
+            const swatch = paletteColor(friend.color)
+            const mine = friend.id === meId
+            const style = checked
+              ? { backgroundColor: swatch.hex, color: inkFor(swatch.hex) }
+              : { backgroundColor: 'transparent', color: swatch.hex, boxShadow: `inset 0 0 0 1px ${swatch.hex}` }
+            const className =
+              'flex h-11 min-w-0 items-center justify-center gap-0.5 overflow-hidden rounded-full px-1 text-[13px] font-bold leading-none'
+            const label = (
+              <>
+                {checked ? <Check className="size-3 shrink-0" strokeWidth={3} /> : null}
+                <span className="truncate">{friend.name}</span>
+              </>
+            )
+            if (!mine) {
+              return (
+                <span
+                  key={friend.id}
+                  role="checkbox"
+                  aria-checked={checked}
+                  aria-label={`${friend.name}, ${book.title}, ${checked ? '읽음' : '아직 안 읽음'}`}
+                  data-testid={`read-${book.id}-${friend.id}`}
+                  className={`${className} cursor-default [-webkit-tap-highlight-color:transparent]`}
+                  style={style}
+                  onClick={() => toast('본인 것만 체크할 수 있어용')}
+                >
+                  {label}
+                </span>
+              )
+            }
+            return (
+              <button
+                key={friend.id}
+                type="button"
+                role="checkbox"
+                aria-checked={checked}
+                aria-label={`${friend.name}, ${book.title}, ${checked ? '읽음. 다시 누르면 빠져용' : '아직 안 읽었어용'}`}
+                data-testid={`read-${book.id}-${friend.id}`}
+                onClick={() => void shelf.toggleRead(book.id, friend.id)}
+                className={className}
+                style={style}
+              >
+                {label}
+              </button>
+            )
+          })}
+        </div>
+      </div>
       <PassBookSheet book={book} open={passOpen} onOpenChange={setPassOpen} />
       <ReadingChoice
         open={choiceOpen}
@@ -378,6 +357,67 @@ export function BookCard({
       />
       <ReadingExtras bookId={book.id} meId={meId} readerId={reader?.id ?? null} onOpenFriend={onOpenFriend} />
     </article>
+  )
+}
+
+const actionButton = 'h-10 rounded-full px-3 text-[14px] font-bold'
+
+function chipColumns(count: number): number {
+  return Math.min(5, Math.max(count, 1))
+}
+
+function CardActions({
+  holding,
+  transfer,
+  meId,
+  admin,
+  onPass,
+  onCancel,
+  onAccept,
+  onDecline,
+}: {
+  holding: boolean
+  transfer: Transfer | null
+  meId: string
+  admin: boolean
+  onPass: () => void
+  onCancel: () => void
+  onAccept: () => void
+  onDecline: () => void
+}) {
+  const pass = holding && !transfer
+  const cancel = Boolean(transfer && transfer.fromId === meId)
+  const answer = Boolean(transfer && transfer.toId === meId)
+  const reassign = !holding && !transfer && admin
+  if (!pass && !cancel && !answer && !reassign) return null
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      {pass ? (
+        <button type="button" data-testid="pass-book" className={`${actionButton} text-x ring-1 ring-inset ring-x/40`} onClick={onPass}>
+          책 넘기기
+        </button>
+      ) : null}
+      {cancel ? (
+        <button type="button" data-testid="cancel-offer" className={`${actionButton} ring-1 ring-inset ring-foreground/30`} onClick={onCancel}>
+          취소
+        </button>
+      ) : null}
+      {answer ? (
+        <>
+          <button type="button" data-testid="accept-offer" className={`${actionButton} bg-x text-white`} onClick={onAccept}>
+            수락
+          </button>
+          <button type="button" data-testid="decline-offer" className={`${actionButton} ring-1 ring-inset ring-foreground/30`} onClick={onDecline}>
+            거절
+          </button>
+        </>
+      ) : null}
+      {reassign ? (
+        <button type="button" data-testid="reassign-holder" className={`${actionButton} ring-1 ring-inset ring-foreground/30`} onClick={onPass}>
+          소장자 바꾸기
+        </button>
+      ) : null}
+    </div>
   )
 }
 
@@ -442,7 +482,7 @@ function QueuePill({ bookId, meId }: { bookId: string; meId: string }) {
     <button
       type="button"
       data-testid="join-queue"
-      className={`mt-0.5 h-7 shrink-0 rounded-full px-2.5 text-[12px] font-bold leading-none ${joined ? 'bg-x text-white' : 'text-foreground ring-1 ring-inset ring-foreground/25'}`}
+      className={`h-8 shrink-0 rounded-full px-2.5 text-[12px] font-bold leading-none ${joined ? 'bg-x text-white' : 'text-foreground ring-1 ring-inset ring-foreground/25'}`}
       onClick={() => void shelf.toggleQueue(bookId)}
     >
       {joined ? `대기 ${place + 1}번째` : '대기 신청'}
