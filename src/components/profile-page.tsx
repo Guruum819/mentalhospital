@@ -69,7 +69,7 @@ export function ProfilePage({
             type="button"
             role="tab"
             aria-selected={tab === id}
-            className={`h-12 flex-1 text-[15px] font-bold ${tab === id ? 'border-b-2 border-foreground text-foreground' : 'text-muted-foreground'}`}
+            className={`h-12 flex-1 text-[15px] font-bold ${tab === id ? 'border-b-2 border-x text-x' : 'text-muted-foreground'}`}
             onClick={() => setTab(id)}
           >
             {label}
@@ -116,7 +116,7 @@ export function ProfilePage({
                         {review.editedAt ? <span className="ml-2 text-[13px] font-medium text-muted-foreground">수정됨</span> : null}
                       </span>
                       {review.rating !== null ? <StarRating value={review.rating} readOnly size="sm" /> : null}
-                      <span className="block truncate text-[15px] font-bold">{book?.title ?? '알 수 없는 책'}</span>
+                      <span className="block truncate text-[15px] font-bold text-x">{book?.title ?? '알 수 없는 책'}</span>
                       <span className="mt-1 block text-[15px] leading-snug whitespace-pre-wrap">{review.text}</span>
                     </span>
                   </button>

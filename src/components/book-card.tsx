@@ -257,14 +257,14 @@ function ReadingExtras({
       <div className="flex flex-wrap gap-2">
         {mine ? (
           nudges.length > 0 ? (
-            <span className="inline-flex h-11 items-center rounded-full bg-foreground px-3 text-[15px] font-bold text-background">
+            <span className="inline-flex h-11 items-center rounded-full bg-x px-3 text-[15px] font-bold text-white">
               독촉 {nudges.length}
             </span>
           ) : null
         ) : (
           <button
             type="button"
-            className="h-11 rounded-full bg-foreground px-3 text-[15px] font-bold text-background disabled:opacity-50"
+            className="h-11 rounded-full bg-x px-3 text-[15px] font-bold text-white disabled:opacity-50"
             disabled={nudged}
             onClick={() => void shelf.nudge(bookId)}
           >

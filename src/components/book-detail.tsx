@@ -197,7 +197,7 @@ function SortPills<T extends string>({
           type="button"
           role="tab"
           aria-selected={value === id}
-          className={`h-8 text-[13px] font-bold ${value === id ? 'text-foreground underline decoration-2 underline-offset-4' : 'text-muted-foreground'}`}
+          className={`h-8 text-[13px] font-bold ${value === id ? 'text-x underline decoration-x decoration-2 underline-offset-4' : 'text-muted-foreground'}`}
           onClick={() => onChange(id)}
         >
           {label}

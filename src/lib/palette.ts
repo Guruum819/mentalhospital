@@ -12,7 +12,7 @@ export const PALETTE: readonly PaletteColor[] = [
   { id: 'teal', label: '청록', hex: '#1f7a78' },
   { id: 'plum', label: '자두', hex: '#7a4b8a' },
   { id: 'gold', label: '황금', hex: '#8d6410' },
-  { id: 'sea', label: '바다', hex: '#2a6f97' },
+  { id: 'sea', label: '회색', hex: '#5e6872' },
   { id: 'berry', label: '베리', hex: '#a33b5a' },
   { id: 'olive', label: '올리브', hex: '#5f6830' },
 ]

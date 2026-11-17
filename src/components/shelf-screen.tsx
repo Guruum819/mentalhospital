@@ -310,7 +310,7 @@ export function ShelfScreen() {
                     <div className="flex items-start justify-between gap-3">
                       <div>
                         <p className="text-[15px] font-bold">
-                          <span className="mr-2 inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-foreground px-1.5 text-[12px] text-background tabular-nums">
+                          <span className="mr-2 inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-x px-1.5 text-[12px] text-white tabular-nums">
                             {names.length}
                           </span>
                           {nudgeLine(names)}
@@ -349,7 +349,7 @@ export function ShelfScreen() {
                     type="button"
                     role="tab"
                     aria-selected={sort === id}
-                    className={`h-11 text-[14px] font-bold ${sort === id ? 'text-foreground underline decoration-2 underline-offset-8' : 'text-muted-foreground'}`}
+                    className={`h-11 text-[14px] font-bold ${sort === id ? 'text-x underline decoration-x decoration-2 underline-offset-8' : 'text-muted-foreground'}`}
                     onClick={() => setSort(id)}
                   >
                     {label}
@@ -382,7 +382,7 @@ export function ShelfScreen() {
               <button
                 type="button"
                 aria-label="책 추가"
-                className="fixed right-4 bottom-[max(1rem,env(safe-area-inset-bottom))] z-30 grid size-14 place-items-center rounded-full bg-x text-x-ink shadow-[0_4px_16px_rgba(15,20,25,0.28)] dark:shadow-[0_4px_16px_rgba(255,255,255,0.16)]"
+                className="fixed right-4 bottom-[max(1rem,env(safe-area-inset-bottom))] z-30 grid size-14 place-items-center rounded-full bg-x text-white shadow-[0_4px_16px_rgba(29,155,240,0.45)]"
                 onClick={() => {
                   setEditingBook(null)
                   setBookOpen(true)
