@@ -613,9 +613,10 @@ export function ShelfProvider({ children }: { children: ReactNode }) {
       async toggleQueue(bookId) {
         const me = readWho()
         const shelf = shownNow()
-        if (!me || !shelf.reading[bookId]) return
-        if (shelf.reading[bookId] === me) {
-          toast('지금 읽고 있어서 대기할 필요가 없어용')
+        const member = shelf.friends.some((friend) => friend.id === me && friend.approved)
+        if (!me || !member) return
+        if (shelf.reads[bookId]?.[me]) {
+          toast('이미 읽은 책은 대기할 필요가 없어용')
           return
         }
         const joined = (shelf.queues[bookId] ?? []).includes(me)

@@ -333,9 +333,14 @@ export function BookCard({
           void shelf.markFinished(book.id)
         }}
       />
-      {reader ? (
-        <ReadingExtras bookId={book.id} meId={meId} readerId={reader.id} onOpenFriend={onOpenFriend} />
-      ) : null}
+      <ReadingExtras
+        bookId={book.id}
+        meId={meId}
+        readerId={reader?.id ?? null}
+        hasRead={mineRead}
+        member={Boolean(me)}
+        onOpenFriend={onOpenFriend}
+      />
     </article>
   )
 }
@@ -396,11 +401,15 @@ function ReadingExtras({
   bookId,
   meId,
   readerId,
+  hasRead,
+  member,
   onOpenFriend,
 }: {
   bookId: string
   meId: string
-  readerId: string
+  readerId: string | null
+  hasRead: boolean
+  member: boolean
   onOpenFriend?: (friendId: string) => void
 }) {
   const shelf = useShelf()
@@ -410,6 +419,8 @@ function ReadingExtras({
     .filter((friend): friend is NonNullable<typeof friend> => Boolean(friend))
   const queued = queue.some((friend) => friend.id === meId)
   const mine = readerId === meId
+  const canQueue = member && !hasRead
+  if (!canQueue && queue.length === 0 && !(mine && nudges.length > 0)) return null
 
   return (
     <div className="mt-2 space-y-2">
@@ -419,15 +430,16 @@ function ReadingExtras({
             독촉 {nudges.length}
           </span>
         ) : null}
-        {mine ? null : (
+        {canQueue ? (
           <button
             type="button"
+            data-testid="join-queue"
             className="h-11 rounded-full px-3 text-[15px] font-bold ring-1 ring-inset ring-foreground/30"
             onClick={() => void shelf.toggleQueue(bookId)}
           >
             {queued ? '대기 취소' : '다음에 읽을래요'}
           </button>
-        )}
+        ) : null}
       </div>
       {queue.length > 0 ? (
         <ol className="flex gap-3 overflow-x-auto" aria-label="다음에 읽을 순서">

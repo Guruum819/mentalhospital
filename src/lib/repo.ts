@@ -278,6 +278,7 @@ function createFirebaseRepo(): ShelfRepository {
       const values: Record<string, unknown> = {
         [`reads/${bookId}/${friendId}`]: read ? true : null,
       }
+      if (read) values[`settings/queues/${bookId}/${friendId}`] = null
       if (clearReading) {
         values[`reading/${bookId}`] = null
         values[`settings/nudges/${bookId}`] = null
@@ -563,11 +564,12 @@ function createDemoRepo(): ShelfRepository {
       else delete reads[bookId]
       const reading = { ...current.reading }
       const nudges = { ...current.nudges }
+      const queues = read ? withoutId(current.queues, bookId, friendId) : current.queues
       if (clearReading) {
         delete reading[bookId]
         delete nudges[bookId]
       }
-      persist({ ...current, reads, reading, nudges }, true)
+      persist({ ...current, reads, reading, nudges, queues }, true)
     },
     async setReading(bookId, friendId) {
       const reading = { ...current.reading }
