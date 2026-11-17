@@ -27,7 +27,7 @@ import {
 
 type View =
   | { name: 'home' }
-  | { name: 'settings' }
+  | { name: 'settings'; postId?: string }
   | { name: 'alerts' }
   | { name: 'profile'; friendId: string }
   | { name: 'book'; bookId: string }
@@ -285,6 +285,7 @@ export function ShelfScreen() {
             />
           ) : top.name === 'settings' ? (
             <SettingsPage
+              initialPostId={top.postId}
               onBack={pop}
               onSwitch={() => setAccount('login')}
               onLogout={logout}
@@ -302,6 +303,13 @@ export function ShelfScreen() {
                   return
                 }
                 push({ name: 'book', bookId })
+              }}
+              onOpenRequest={(postId) => {
+                if (!shelf.data.posts.some((post) => post.id === postId)) {
+                  toast('이 글을 찾을 수 없어용.')
+                  return
+                }
+                push({ name: 'settings', postId })
               }}
             />
           ) : top.name === 'book' && detail ? (

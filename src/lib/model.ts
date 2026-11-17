@@ -358,11 +358,13 @@ function parsePosts(raw: unknown): ShelfData['posts'] {
 
 function parseNotice(id: string, raw: unknown): Notice | null {
   if (!isSafeId(id) || !isRecord(raw)) return null
-  const kind = raw.kind === 'like' || raw.kind === 'reply' || raw.kind === 'nudge' ? raw.kind : null
+  const kind = raw.kind === 'like' || raw.kind === 'reply' || raw.kind === 'nudge' || raw.kind === 'request' ? raw.kind : null
   const actorId = typeof raw.actorId === 'string' ? raw.actorId : ''
   const bookId = typeof raw.bookId === 'string' ? raw.bookId : ''
   const createdAt = typeof raw.createdAt === 'number' && Number.isFinite(raw.createdAt) ? raw.createdAt : 0
-  if (!kind || !isSafeId(actorId) || !isSafeId(bookId)) return null
+  const postId = typeof raw.postId === 'string' && isSafeId(raw.postId) ? raw.postId : null
+  if (!kind || !isSafeId(actorId)) return null
+  if (kind === 'request' ? !postId : !isSafeId(bookId)) return null
   const reviewId = typeof raw.reviewId === 'string' && isSafeId(raw.reviewId) ? raw.reviewId : null
   return {
     id,
@@ -370,6 +372,7 @@ function parseNotice(id: string, raw: unknown): Notice | null {
     actorId,
     bookId,
     reviewId,
+    postId,
     preview: cleanReview(raw.preview),
     createdAt,
     read: raw.read === true,
@@ -699,6 +702,10 @@ export function nudgeNoticeId(bookId: string, actorId: string): string {
   return noticeKey('nudge', bookId, actorId)
 }
 
+export function requestNoticeId(replyId: string): string {
+  return noticeKey('request', replyId)
+}
+
 export function likeNotice(
   review: Pick<Review, 'id' | 'friendId' | 'bookId'>,
   actorId: string,
@@ -715,6 +722,7 @@ export function likeNotice(
       actorId,
       bookId: review.bookId,
       reviewId: review.id,
+      postId: null,
       preview: null,
       createdAt: at,
       read: false,
@@ -740,6 +748,7 @@ export function replyNotice(
       actorId: reply.friendId,
       bookId: reply.bookId,
       reviewId: parent.id,
+      postId: null,
       preview,
       createdAt: reply.createdAt,
       read: false,
@@ -764,8 +773,33 @@ export function nudgeNotice(
       actorId,
       bookId,
       reviewId: null,
+      postId: null,
       preview: null,
       createdAt: at,
+      read: false,
+    },
+  }
+}
+
+export function requestNotice(
+  post: { id: string; friendId: string },
+  reply: { id: string; text: string; createdAt: number },
+): { recipientId: string; notice: Notice } | null {
+  if (!isSafeId(post.id) || !isSafeId(post.friendId)) return null
+  const preview = cleanReview(reply.text)
+  const id = requestNoticeId(reply.id)
+  if (!preview || !isSafeId(id)) return null
+  return {
+    recipientId: post.friendId,
+    notice: {
+      id,
+      kind: 'request',
+      actorId: 'admin',
+      bookId: '',
+      reviewId: null,
+      postId: post.id,
+      preview,
+      createdAt: reply.createdAt,
       read: false,
     },
   }
@@ -826,6 +860,10 @@ export function replyAlertLine(name: string, preview: string): string {
 
 export function nudgeAlertLine(name: string, title: string): string {
   return `${name}님이 『${title}』 뱉으래용!`
+}
+
+export function requestAlertLine(preview: string): string {
+  return `관리자가 내 수정 요청에 답글을 달았어용: ${noticePreview(preview)}`
 }
 
 export const DAILY_NUDGE_LIMIT = 4

@@ -17,6 +17,7 @@ import {
   nextNudgeSends,
   nudgeNotice,
   readNotifications,
+  requestNotice,
   replyNotice,
   toPersisted,
   withNotification,
@@ -106,12 +107,13 @@ function notificationValue(notice: Notice) {
   const value: Record<string, unknown> = {
     kind: notice.kind,
     actorId: notice.actorId,
-    bookId: notice.bookId,
     createdAt: notice.createdAt,
     read: notice.read,
   }
+  if (notice.bookId) value.bookId = notice.bookId
   if (notice.reviewId) value.reviewId = notice.reviewId
   if (notice.preview) value.preview = notice.preview
+  if (notice.postId) value.postId = notice.postId
   return value
 }
 
@@ -334,9 +336,14 @@ function createFirebaseRepo(): ShelfRepository {
       await write({ [`settings/requests/${postId}/done`]: done })
     },
     async addRequestReply(postId, reply) {
-      await write({
+      const values: Record<string, unknown> = {
         [`settings/requests/${postId}/replies/${reply.id}`]: { text: reply.text, createdAt: reply.createdAt },
-      })
+      }
+      const post = current.posts.find((item) => item.id === postId)
+      const author = post && current.friends.some((friend) => friend.id === post.friendId) ? post : null
+      const built = author ? requestNotice(author, reply) : null
+      if (built) values[`friends/${built.recipientId}/notifications/${built.notice.id}`] = notificationValue(built.notice)
+      await write(values)
     },
     async markNotificationsRead(friendId, ids) {
       const values: Record<string, unknown> = {}
@@ -610,15 +617,15 @@ function createDemoRepo(): ShelfRepository {
       )
     },
     async addRequestReply(postId, reply) {
-      persist(
-        {
-          ...current,
-          posts: current.posts.map((post) =>
-            post.id === postId ? { ...post, replies: [...post.replies, reply] } : post,
-          ),
-        },
-        true,
-      )
+      const post = current.posts.find((item) => item.id === postId)
+      let next: ShelfData = {
+        ...current,
+        posts: current.posts.map((item) => (item.id === postId ? { ...item, replies: [...item.replies, reply] } : item)),
+      }
+      const author = post && current.friends.some((friend) => friend.id === post.friendId) ? post : null
+      const built = author ? requestNotice(author, reply) : null
+      if (built) next = withNotification(next, built.recipientId, built.notice)
+      persist(next, true)
     },
     async markNotificationsRead(friendId, ids) {
       persist(readNotifications(current, friendId, ids), true)

@@ -12,7 +12,7 @@ import {
   titleForHangulQuery,
   type BookHit,
 } from '../src/lib/book-search.ts'
-import { cleanBirthday, cleanCover, cleanReview, dropMemberNotifications, findProfile, fromFirebase, fromPersisted, isSafeId, likeAlertLine, likeNotice, likeNoticeId, markedFinished, newId, nextNudgeSends, nudgeAlertLine, nudgeAllowanceLine, nudgeLine, nudgeNotice, nudgesRemaining, readNotifications, replyAlertLine, replyNotice, sameIdentity, seoulDay, sortedBooks, sortedComments, toggledRead, toPersisted, withNotification, withoutNotification } from '../src/lib/model.ts'
+import { cleanBirthday, cleanCover, cleanReview, dropMemberNotifications, findProfile, fromFirebase, fromPersisted, isSafeId, likeAlertLine, likeNotice, likeNoticeId, markedFinished, newId, nextNudgeSends, nudgeAlertLine, nudgeAllowanceLine, nudgeLine, nudgeNotice, nudgesRemaining, readNotifications, replyAlertLine, replyNotice, requestAlertLine, requestNotice, sameIdentity, seoulDay, sortedBooks, sortedComments, toggledRead, toPersisted, withNotification, withoutNotification } from '../src/lib/model.ts'
 import { formatPatchDate } from '../src/lib/patch-notes.ts'
 import { PALETTE } from '../src/lib/palette.ts'
 import { starterShelf } from '../src/lib/seed.ts'
@@ -241,6 +241,26 @@ test('notifications stay under the member, skip my own actions, and unlike remov
   assert.equal(replyAlertLine('민수', '가'.repeat(50)).endsWith('…'), true)
   assert.equal(replyAlertLine('민수', '가'.repeat(50)).includes('가'.repeat(41)), false)
   assert.equal(nudgeAlertLine('민수', '작별하지 않는다'), '민수님이 『작별하지 않는다』 뱉으래용!')
+  const request = requestNotice({ id: 'post-1', friendId: 'friend-chaeryeong' }, { id: 'reply-1', text: '표지를 고쳐 둘게용', createdAt: 9 })
+  assert.equal(request?.recipientId, 'friend-chaeryeong')
+  assert.equal(request?.notice.postId, 'post-1')
+  assert.equal(requestAlertLine('표지를 고쳐 둘게용'), '관리자가 내 수정 요청에 답글을 달았어용: 표지를 고쳐 둘게용')
+  const notified = fromFirebase({
+    friends: {
+      'friend-chaeryeong': {
+        name: '채령',
+        order: 1,
+        color: 'indigo',
+        birthday: '1994-04-04',
+        notifications: {
+          [request!.notice.id]: { kind: 'request', actorId: 'admin', postId: 'post-1', preview: '표지를 고쳐 둘게용', createdAt: 9, read: false },
+        },
+      },
+    },
+  })
+  assert.equal(notified.notifications['friend-chaeryeong']?.[0]?.kind, 'request')
+  assert.equal(notified.notifications['friend-chaeryeong']?.[0]?.postId, 'post-1')
+  assert.equal(notified.friends[0]?.name, '채령')
 })
 
 test('each member gets four nudges per Seoul day', () => {

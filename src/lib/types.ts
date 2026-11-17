@@ -49,11 +49,14 @@ export type AdminLock = {
 /** One member's inbox item. Stored under that member in Realtime Database. */
 export type Notice = {
   id: string
-  kind: 'like' | 'reply' | 'nudge'
+  kind: 'like' | 'reply' | 'nudge' | 'request'
   actorId: string
+  /** Empty when this opens the request board instead of a book. */
   bookId: string
-  /** Parent review for a like or reply. Empty for a nudge. */
+  /** Parent review for a like or reply. Empty for a nudge or a board reply. */
   reviewId: string | null
+  /** Board post for an admin reply. */
+  postId: string | null
   /** Reply text. Empty for a like or nudge. */
   preview: string | null
   createdAt: number

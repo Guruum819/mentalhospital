@@ -23,6 +23,7 @@ export function SettingsPage({
   onGuide,
   onClearBooks,
   adminOnly = false,
+  initialPostId,
 }: {
   onBack: () => void
   onSwitch: () => void
@@ -32,10 +33,12 @@ export function SettingsPage({
   onClearBooks: () => void
   /** Admin session with no member logged in. */
   adminOnly?: boolean
+  /** Open the request board on this post, from a notification. */
+  initialPostId?: string
 }) {
   const shelf = useShelf()
   const [adminOpen, setAdminOpen] = useState(false)
-  const [panel, setPanel] = useState<'root' | 'patches' | 'board' | string>('root')
+  const [panel, setPanel] = useState<'root' | 'patches' | 'board' | string>(initialPostId ? 'board' : 'root')
   const [boardFromAdmin, setBoardFromAdmin] = useState(false)
   const [newerBuild, setNewerBuild] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
@@ -84,7 +87,12 @@ export function SettingsPage({
   if (panel === 'board') {
     return (
       <RequestBoard
+        focusId={initialPostId}
         onBack={() => {
+          if (initialPostId) {
+            onBack()
+            return
+          }
           setPanel('root')
           if (boardFromAdmin) setAdminOpen(true)
         }}
@@ -238,8 +246,12 @@ function PatchDay({ date, onBack }: { date: string; onBack: () => void }) {
   )
 }
 
-function RequestBoard({ onBack }: { onBack: () => void }) {
+function RequestBoard({ onBack, focusId }: { onBack: () => void; focusId?: string }) {
   const shelf = useShelf()
+  useEffect(() => {
+    if (!focusId) return
+    document.getElementById(`post-${focusId}`)?.scrollIntoView({ block: 'center' })
+  }, [focusId])
   const [text, setText] = useState('')
   const [anonymous, setAnonymous] = useState(false)
   const [replyTo, setReplyTo] = useState<string | null>(null)
@@ -306,7 +318,12 @@ function RequestBoard({ onBack }: { onBack: () => void }) {
             const showName = shelf.admin || !post.anonymous
             const mine = post.friendId === meId
             return (
-              <li key={post.id} className="border-b border-border px-4 py-3">
+              <li
+                key={post.id}
+                id={`post-${post.id}`}
+                data-testid={focusId === post.id ? 'focused-request' : undefined}
+                className={`border-b border-border px-4 py-3 ${focusId === post.id ? 'bg-accent/60' : ''}`}
+              >
                 <div className="flex gap-3">
                   {showName ? (
                     <Avatar name={author?.name ?? '?'} photo={author?.photo ?? null} size={40} />

@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { ChevronLeft } from 'lucide-react'
-import { likeAlertLine, nudgeAlertLine, replyAlertLine } from '@/lib/model'
+import { likeAlertLine, nudgeAlertLine, replyAlertLine, requestAlertLine } from '@/lib/model'
 import { useShelf } from '@/lib/store'
 import type { Friend, Notice } from '@/lib/types'
 import { Avatar } from '@/components/avatar-editor'
@@ -10,10 +10,12 @@ export function NotificationsPage({
   me,
   onBack,
   onOpenBook,
+  onOpenRequest,
 }: {
   me: Friend
   onBack: () => void
   onOpenBook: (bookId: string) => void
+  onOpenRequest: (postId: string) => void
 }) {
   const shelf = useShelf()
   const shelfRef = useRef(shelf)
@@ -49,7 +51,11 @@ export function NotificationsPage({
         ) : (
           <div>
             {items.map((notice) => (
-              <NotificationRow key={notice.id} notice={notice} onOpen={() => onOpenBook(notice.bookId)} />
+              <NotificationRow
+                key={notice.id}
+                notice={notice}
+                onOpen={() => (notice.kind === 'request' && notice.postId ? onOpenRequest(notice.postId) : onOpenBook(notice.bookId))}
+              />
             ))}
           </div>
         )}
@@ -60,11 +66,13 @@ export function NotificationsPage({
 
 function NotificationRow({ notice, onOpen }: { notice: Notice; onOpen: () => void }) {
   const shelf = useShelf()
-  const actor = shelf.data.friends.find((friend) => friend.id === notice.actorId)
-  const name = actor?.name ?? '친구'
+  const request = notice.kind === 'request'
+  const actor = request ? null : shelf.data.friends.find((friend) => friend.id === notice.actorId)
+  const name = request ? '관리자' : (actor?.name ?? '친구')
   const book = shelf.data.books.find((item) => item.id === notice.bookId)
-  const line =
-    notice.kind === 'like'
+  const line = request
+    ? requestAlertLine(notice.preview ?? '')
+    : notice.kind === 'like'
       ? likeAlertLine(name)
       : notice.kind === 'reply'
         ? replyAlertLine(name, notice.preview ?? '')
@@ -81,7 +89,7 @@ function NotificationRow({ notice, onOpen }: { notice: Notice; onOpen: () => voi
       <Avatar name={name} photo={actor?.photo ?? null} size={36} />
       <span className="min-w-0 flex-1">
         <span className="block text-[15px] leading-snug">{line}</span>
-        {notice.kind !== 'nudge' ? (
+        {notice.kind !== 'nudge' && notice.kind !== 'request' ? (
           <span className="mt-0.5 block truncate text-[13px] text-muted-foreground">{book?.title ?? '책을 찾을 수 없어용'}</span>
         ) : null}
       </span>
