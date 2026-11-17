@@ -85,7 +85,7 @@ export function BookDetail({
             <p className="text-[13px] tabular-nums text-muted-foreground">
               {chars}/{MAX_REVIEW}
             </p>
-            <Button type="submit" className="h-9 bg-x px-4 text-white hover:bg-x/90" disabled={pending || !text.trim() || chars > MAX_REVIEW || rating === null}>
+            <Button type="submit" className="h-9 bg-x px-4 text-x-ink hover:bg-x/90" disabled={pending || !text.trim() || chars > MAX_REVIEW || rating === null}>
               올리기
             </Button>
           </div>

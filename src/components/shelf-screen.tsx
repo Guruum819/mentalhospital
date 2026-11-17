@@ -261,7 +261,7 @@ export function ShelfScreen() {
       <button
         type="button"
         aria-label="책 추가"
-        className="fixed right-4 bottom-[max(1rem,env(safe-area-inset-bottom))] z-30 grid size-14 place-items-center rounded-full bg-x text-white shadow-[0_4px_16px_rgba(29,155,240,0.45)]"
+        className="fixed right-4 bottom-[max(1rem,env(safe-area-inset-bottom))] z-30 grid size-14 place-items-center rounded-full bg-x text-x-ink shadow-[0_4px_16px_rgba(15,20,25,0.28)] dark:shadow-[0_4px_16px_rgba(255,255,255,0.16)]"
         onClick={() => { setEditingBook(null); setBookOpen(true) }}
       >
         <Plus className="size-7" strokeWidth={2.5} />
