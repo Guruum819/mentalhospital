@@ -15,6 +15,7 @@ import {
   handoffNotice,
   offerNoticeId,
   holderAfterRemoval,
+  resolvedHolderId,
   isSafeId,
   likeNotice,
   nextNudgeSends,
@@ -348,6 +349,7 @@ function createFirebaseRepo(): ShelfRepository {
       await write(values)
     },
     async setReading(bookId, friendId) {
+      if (!holderMaySetReading(current, bookId, friendId)) return
       const values: Record<string, unknown> = { [`reading/${bookId}`]: friendId }
       values[`settings/nudges/${bookId}`] = null
       if (friendId) values[`settings/queues/${bookId}/${friendId}`] = null
@@ -459,6 +461,15 @@ function dropSends(sends: ShelfData['nudgeSends'], friendId: string): ShelfData[
   const next = { ...sends }
   delete next[friendId]
   return next
+}
+
+function holderMaySetReading(shelf: ShelfData, bookId: string, friendId: string | null): boolean {
+  const book = shelf.books.find((item) => item.id === bookId)
+  if (!book) return false
+  const holder = resolvedHolderId(book, new Set(shelf.friends.filter((friend) => friend.approved).map((friend) => friend.id)))
+  if (!holder) return false
+  if (friendId) return friendId === holder
+  return shelf.reading[bookId] === holder
 }
 
 function withoutId(queue: ShelfData['queues'], bookId: string, friendId: string): ShelfData['queues'] {
@@ -691,6 +702,7 @@ function createDemoRepo(): ShelfRepository {
       persist({ ...current, reads, reading, nudges, queues }, true)
     },
     async setReading(bookId, friendId) {
+      if (!holderMaySetReading(current, bookId, friendId)) return
       const reading = { ...current.reading }
       if (friendId) reading[bookId] = friendId
       else delete reading[bookId]

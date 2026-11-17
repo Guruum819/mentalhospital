@@ -572,7 +572,16 @@ export function ShelfProvider({ children }: { children: ReactNode }) {
       },
       async setReading(bookId, friendId) {
         const me = readWho()
-        const current = shownNow().reading[bookId] ?? null
+        const shelf = shownNow()
+        const book = shelf.books.find((item) => item.id === bookId)
+        const holder = book
+          ? resolvedHolderId(book, new Set(shelf.friends.filter((friend) => friend.approved).map((friend) => friend.id)))
+          : null
+        if (!me || holder !== me) {
+          toast('지금 갖고 있는 사람만 읽는 중으로 표시할 수 있어용')
+          return
+        }
+        const current = shelf.reading[bookId] ?? null
         const ownFlag = friendId === me || (friendId === null && current === me)
         if (!ownFlag || (friendId === me && current !== null && current !== me)) {
           toast('본인 것만 읽는 중으로 표시할 수 있어용')
@@ -594,8 +603,15 @@ export function ShelfProvider({ children }: { children: ReactNode }) {
       },
       async markFinished(bookId) {
         const me = readWho()
-        if (!me) return
         const before = shownNow()
+        const book = before.books.find((item) => item.id === bookId)
+        const holder = book
+          ? resolvedHolderId(book, new Set(before.friends.filter((friend) => friend.approved).map((friend) => friend.id)))
+          : null
+        if (!me || holder !== me) {
+          toast('지금 갖고 있는 사람만 완독으로 표시할 수 있어용')
+          return
+        }
         const change = markedFinished(before, bookId, me)
         const key = cellKey(bookId, me)
         pendingRef.current.reads.set(key, true)
@@ -666,7 +682,19 @@ export function ShelfProvider({ children }: { children: ReactNode }) {
         }
         const joined = (shelf.queues[bookId] ?? []).includes(me)
         const ok = await guard(() => repo.setQueue(bookId, me, joined ? null : Date.now()))
-        if (ok) toast.success(joined ? '대기에서 빠졌어용.' : '다음에 읽을 순서에 넣었어용.')
+        if (!ok) return
+        if (joined) {
+          toast('대기에서 빠졌어용.', {
+            action: {
+              label: '되돌리기',
+              onClick: () => {
+                void repo.setQueue(bookId, me, Date.now())
+              },
+            },
+          })
+          return
+        }
+        toast.success('대기 신청했어용.')
       },
       async addRequest(text, anonymous) {
         const me = readWho()

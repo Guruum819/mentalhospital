@@ -135,38 +135,33 @@ export function BookCard({
         </div>
 
         <div className="min-w-0 flex-1">
-          <div className="flex items-start justify-between gap-2">
-            <div className="min-w-0 flex-1">
-              <h2 data-testid="book-title" className="truncate text-[17px] leading-snug font-bold tracking-tight">
-                {book.title}
-              </h2>
-              <p data-testid="book-holder" className="mt-0.5 text-[13px] text-muted-foreground">
-                {holder ? (
-                  <>
-                    지금{' '}
-                    <span className="font-bold" style={{ color: paletteColor(holder.color).hex }}>
-                      {holding ? '내가' : holder.name}
-                    </span>
-                    {holding ? ' ' : '님이 '}갖고 있어용
-                  </>
-                ) : (
-                  '지금 갖고 있는 사람이 없어용'
-                )}
-              </p>
-              {transfer ? (
-                <p data-testid="pending-pass" className="mt-0.5 text-[13px] font-medium text-foreground">
-                  {pendingPassLine(pendingName ?? '친구')}
-                </p>
-              ) : null}
-            </div>
+          <div className="flex items-start gap-2">
+            <h2 data-testid="book-title" className="min-w-0 flex-1 text-[17px] leading-snug font-bold tracking-tight break-words">
+              {book.title}
+            </h2>
+            {me && !mineRead ? <QueuePill bookId={book.id} meId={meId} /> : null}
             {book.buyerId === meId ? (
-              <BookMenu
-                canDelete
-                onEdit={() => onEdit(book)}
-                onDelete={() => onDelete(book)}
-              />
+              <BookMenu canDelete onEdit={() => onEdit(book)} onDelete={() => onDelete(book)} />
             ) : null}
           </div>
+          <p data-testid="book-holder" className="mt-0.5 text-[13px] text-muted-foreground">
+            {holder ? (
+              <>
+                지금{' '}
+                <span className="font-bold" style={{ color: paletteColor(holder.color).hex }}>
+                  {holding ? '내가' : holder.name}
+                </span>
+                {holding ? ' ' : '님이 '}갖고 있어용
+              </>
+            ) : (
+              '지금 갖고 있는 사람이 없어용'
+            )}
+          </p>
+          {transfer ? (
+            <p data-testid="pending-pass" className="mt-0.5 text-[13px] font-medium text-foreground">
+              {pendingPassLine(pendingName ?? '친구')}
+            </p>
+          ) : null}
           <p className="truncate text-[15px] text-muted-foreground">{book.author || '저자 미상'}</p>
           {average !== null ? (
             <div className="mt-1">
@@ -288,9 +283,8 @@ export function BookCard({
         })}
       </div>
 
-      <div className="mt-2 space-y-2">
-        {reader && readerSwatch && !mineReading ? (
-          <div className="space-y-1">
+      {reader && readerSwatch && !mineReading ? (
+        <div className="mt-2 space-y-1">
             <div className="flex items-center gap-2">
               <div
                 className={`flex h-11 min-w-0 flex-1 items-center gap-2 rounded-full px-3 text-[15px] font-bold ${poking ? 'nudge-poke' : ''}`}
@@ -324,9 +318,10 @@ export function BookCard({
               </p>
             ) : null}
           </div>
-        ) : null}
-        {mineReading && reader && readerSwatch ? (
-          <div className="flex min-h-11 items-center gap-2" data-testid={`reading-${book.id}`}>
+      ) : null}
+      {holding && (mineReading || !reader) ? (
+        mineReading && reader && readerSwatch ? (
+          <div className="mt-2 flex min-h-11 items-center gap-2" data-testid={`reading-${book.id}`}>
             <button
               type="button"
               className="flex h-11 min-w-0 flex-1 items-center gap-2 rounded-full px-3 text-[15px] font-bold"
@@ -347,7 +342,7 @@ export function BookCard({
         ) : mineRead && meSwatch ? (
           <button
             type="button"
-            className="flex h-11 w-full items-center justify-center gap-2 rounded-full px-3 text-[15px] font-bold"
+            className="mt-2 flex h-11 w-full items-center justify-center gap-2 rounded-full px-3 text-[15px] font-bold"
             data-testid={`finished-${book.id}`}
             style={{ backgroundColor: meSwatch.hex, color: inkFor(meSwatch.hex) }}
             onClick={() => setChoiceOpen(true)}
@@ -358,14 +353,14 @@ export function BookCard({
         ) : (
           <button
             type="button"
-            className="flex h-11 w-full items-center justify-center rounded-full text-[15px] font-bold text-x ring-1 ring-inset ring-x/40"
+            className="mt-2 flex h-11 w-full items-center justify-center rounded-full text-[15px] font-bold text-x ring-1 ring-inset ring-x/40"
             data-testid={`reading-${book.id}`}
             onClick={() => setChoiceOpen(true)}
           >
             읽는 중
           </button>
-        )}
-      </div>
+        )
+      ) : null}
       <PassBookSheet book={book} open={passOpen} onOpenChange={setPassOpen} />
       <ReadingChoice
         open={choiceOpen}
@@ -381,14 +376,7 @@ export function BookCard({
           void shelf.markFinished(book.id)
         }}
       />
-      <ReadingExtras
-        bookId={book.id}
-        meId={meId}
-        readerId={reader?.id ?? null}
-        hasRead={mineRead}
-        member={Boolean(me)}
-        onOpenFriend={onOpenFriend}
-      />
+      <ReadingExtras bookId={book.id} meId={meId} readerId={reader?.id ?? null} onOpenFriend={onOpenFriend} />
     </article>
   )
 }
@@ -445,19 +433,32 @@ function useNow() {
   return now
 }
 
+function QueuePill({ bookId, meId }: { bookId: string; meId: string }) {
+  const shelf = useShelf()
+  const queue = shelf.data.queues[bookId] ?? []
+  const place = queue.indexOf(meId)
+  const joined = place >= 0
+  return (
+    <button
+      type="button"
+      data-testid="join-queue"
+      className={`mt-0.5 h-7 shrink-0 rounded-full px-2.5 text-[12px] font-bold leading-none ${joined ? 'bg-x text-white' : 'text-foreground ring-1 ring-inset ring-foreground/25'}`}
+      onClick={() => void shelf.toggleQueue(bookId)}
+    >
+      {joined ? `대기 ${place + 1}번째` : '대기 신청'}
+    </button>
+  )
+}
+
 function ReadingExtras({
   bookId,
   meId,
   readerId,
-  hasRead,
-  member,
   onOpenFriend,
 }: {
   bookId: string
   meId: string
   readerId: string | null
-  hasRead: boolean
-  member: boolean
   onOpenFriend?: (friendId: string) => void
 }) {
   const shelf = useShelf()
@@ -465,30 +466,16 @@ function ReadingExtras({
   const queue = (shelf.data.queues[bookId] ?? [])
     .map((id) => shelf.data.friends.find((friend) => friend.id === id))
     .filter((friend): friend is NonNullable<typeof friend> => Boolean(friend))
-  const queued = queue.some((friend) => friend.id === meId)
   const mine = readerId === meId
-  const canQueue = member && !hasRead
-  if (!canQueue && queue.length === 0 && !(mine && nudges.length > 0)) return null
+  if (queue.length === 0 && !(mine && nudges.length > 0)) return null
 
   return (
     <div className="mt-2 space-y-2">
-      <div className="flex flex-wrap gap-2">
-        {mine && nudges.length > 0 ? (
-          <span className="inline-flex h-11 items-center rounded-full bg-x px-3 text-[15px] font-bold text-white">
-            독촉 {nudges.length}
-          </span>
-        ) : null}
-        {canQueue ? (
-          <button
-            type="button"
-            data-testid="join-queue"
-            className="h-11 rounded-full px-3 text-[15px] font-bold ring-1 ring-inset ring-foreground/30"
-            onClick={() => void shelf.toggleQueue(bookId)}
-          >
-            {queued ? '대기 취소' : '다음에 읽을래요'}
-          </button>
-        ) : null}
-      </div>
+      {mine && nudges.length > 0 ? (
+        <span className="inline-flex h-11 items-center rounded-full bg-x px-3 text-[15px] font-bold text-white">
+          독촉 {nudges.length}
+        </span>
+      ) : null}
       {queue.length > 0 ? (
         <ol className="flex gap-3 overflow-x-auto" aria-label="다음에 읽을 순서">
           {queue.map((friend, index) => (

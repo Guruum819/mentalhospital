@@ -496,7 +496,7 @@ function GuideDialog({ open, onOpenChange, demo }: { open: boolean; onOpenChange
         </DialogHeader>
         <ul className="space-y-2 text-sm leading-relaxed">
           <li>내 이름만 읽음으로 체크할 수 있어용. 다시 누르면 빠져용.</li>
-          <li>읽는 중 버튼에서 읽는 중이랑 완독을 고를 수 있어용. 완독이면 읽음으로 체크되고, 읽는 중에서 빠져용.</li>
+          <li>책을 갖고 있는 사람만 읽는 중이랑 완독을 고를 수 있어용. 완독이면 읽음으로 체크되고, 읽는 중에서 빠져용.</li>
           <li>책을 추가할 때 제목을 검색하면 표지와 저자가 채워져용. 없으면 직접 입력해 주세용.</li>
           <li>다른 기기에서는 이름이랑 생일로 로그인할 수 있어용. 같은 이름이랑 생일은 하나만 돼용.</li>
           <li>새로 가입하면 관리자가 승인한 뒤에 들어올 수 있어용.</li>
