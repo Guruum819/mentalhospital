@@ -863,7 +863,7 @@ export function nudgeAlertLine(name: string, title: string): string {
 }
 
 export function requestAlertLine(preview: string): string {
-  return `관리자가 내 수정 요청에 답글을 달았어용: ${noticePreview(preview)}`
+  return `관리자에게 답변이 달렸어용: ${noticePreview(preview)}`
 }
 
 export const DAILY_NUDGE_LIMIT = 4

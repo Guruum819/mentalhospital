@@ -244,7 +244,7 @@ test('notifications stay under the member, skip my own actions, and unlike remov
   const request = requestNotice({ id: 'post-1', friendId: 'friend-chaeryeong' }, { id: 'reply-1', text: '표지를 고쳐 둘게용', createdAt: 9 })
   assert.equal(request?.recipientId, 'friend-chaeryeong')
   assert.equal(request?.notice.postId, 'post-1')
-  assert.equal(requestAlertLine('표지를 고쳐 둘게용'), '관리자가 내 수정 요청에 답글을 달았어용: 표지를 고쳐 둘게용')
+  assert.equal(requestAlertLine('표지를 고쳐 둘게용'), '관리자에게 답변이 달렸어용: 표지를 고쳐 둘게용')
   const notified = fromFirebase({
     friends: {
       'friend-chaeryeong': {
