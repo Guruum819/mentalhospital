@@ -350,6 +350,10 @@ export function ShelfProvider({ children }: { children: ReactNode }) {
         return guard(() => repo.deleteBook(id, shelf.reviews))
       },
       async toggleRead(bookId, friendId) {
+        if (friendId !== readWho()) {
+          toast('본인 것만 체크할 수 있어용')
+          return
+        }
         const before = shownNow()
         const change = toggledRead(before, bookId, friendId)
         const key = cellKey(bookId, friendId)
@@ -376,6 +380,13 @@ export function ShelfProvider({ children }: { children: ReactNode }) {
         }
       },
       async setReading(bookId, friendId) {
+        const me = readWho()
+        const current = shownNow().reading[bookId] ?? null
+        const ownFlag = friendId === me || (friendId === null && current === me)
+        if (!ownFlag || (friendId === me && current !== null && current !== me)) {
+          toast('본인 것만 읽는 중으로 표시할 수 있어용')
+          return
+        }
         pendingRef.current.reading.set(bookId, friendId)
         bump()
         try {

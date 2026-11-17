@@ -221,7 +221,7 @@ export function ShelfScreen() {
         <p className="border-b border-border px-4 py-2 text-sm text-destructive">{shelf.error}</p>
       ) : null}
       <p className="border-b border-border px-4 py-2 text-[13px] text-muted-foreground">
-        이름을 누르면 읽음 · 책 {stats.bookCount}권 · 친구 {stats.friendCount}명
+        내 이름만 읽음으로 체크할 수 있어용 · 책 {stats.bookCount}권 · 친구 {stats.friendCount}명
         {stats.totalCells > 0 ? ` · ${stats.readCells}/${stats.totalCells}` : ''}
       </p>
       <div className="flex gap-2 overflow-x-auto border-b border-border px-4 py-2">
@@ -425,8 +425,8 @@ function GuideDialog({ open, onOpenChange, demo }: { open: boolean; onOpenChange
           <DialogDescription>친구끼리만 보는 서재예용.</DialogDescription>
         </DialogHeader>
         <ul className="space-y-2 text-sm leading-relaxed">
-          <li>이름 칸을 누르면 그 친구가 읽은 거예용. 다시 누르면 빠져용.</li>
-          <li>읽는 중은 아래 버튼에서 고르고, 해제는 한 번이면 돼용. 다 읽음으로 체크하면 읽는 중은 자동으로 빠져용.</li>
+          <li>내 이름만 읽음으로 체크할 수 있어용. 다시 누르면 빠져용.</li>
+          <li>읽는 중도 나만 표시하거나 해제할 수 있어용. 내가 다 읽음으로 체크하면 읽는 중은 자동으로 빠져용.</li>
           <li>책을 추가할 때 제목을 검색하면 표지와 저자가 채워져용. 없으면 직접 입력해 주세용.</li>
           <li>다른 기기에서는 이름이랑 생일로 로그인할 수 있어용. 같은 이름이랑 생일은 하나만 돼용.</li>
           <li>모임은 10명까지예용.</li>

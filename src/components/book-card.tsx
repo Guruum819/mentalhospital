@@ -3,6 +3,7 @@ import { Check, ImageOff, MoreHorizontal } from 'lucide-react'
 import { averageRating, countReads } from '@/lib/model'
 import { inkFor, paletteColor } from '@/lib/palette'
 import { useShelf } from '@/lib/store'
+import { toast } from 'sonner'
 import type { Book } from '@/lib/types'
 import { Avatar } from '@/components/avatar-editor'
 import { StarRating } from '@/components/star-rating'
@@ -67,7 +68,6 @@ export function BookCard({
 }) {
   const shelf = useShelf()
   const [brokenCover, setBrokenCover] = useState(false)
-  const [picking, setPicking] = useState(false)
   const friends = shelf.data.friends
   const readCount = countReads(
     shelf.data.reads,
@@ -146,6 +146,27 @@ export function BookCard({
         {friends.map((friend) => {
           const checked = Boolean(shelf.data.reads[book.id]?.[friend.id])
           const swatch = paletteColor(friend.color)
+          const mine = friend.id === meId
+          const style = checked
+            ? { backgroundColor: swatch.hex, color: inkFor(swatch.hex) }
+            : { backgroundColor: 'transparent', color: swatch.hex, boxShadow: `inset 0 0 0 1px ${swatch.hex}` }
+          if (!mine) {
+            return (
+              <span
+                key={friend.id}
+                role="checkbox"
+                aria-checked={checked}
+                aria-label={`${friend.name}, ${book.title}, ${checked ? '읽음' : '아직 안 읽음'}`}
+                data-testid={`read-${book.id}-${friend.id}`}
+                className="inline-flex h-11 min-w-11 cursor-default items-center justify-center gap-1 rounded-full px-3 text-[15px] font-bold [-webkit-tap-highlight-color:transparent]"
+                style={style}
+                onClick={() => toast('본인 것만 체크할 수 있어용')}
+              >
+                {checked ? <Check className="size-4" strokeWidth={3} /> : null}
+                {friend.name}
+              </span>
+            )
+          }
           return (
             <button
               key={friend.id}
@@ -156,11 +177,7 @@ export function BookCard({
               data-testid={`read-${book.id}-${friend.id}`}
               onClick={() => void shelf.toggleRead(book.id, friend.id)}
               className="inline-flex h-11 min-w-11 items-center justify-center gap-1 rounded-full px-3 text-[15px] font-bold"
-              style={
-                checked
-                  ? { backgroundColor: swatch.hex, color: inkFor(swatch.hex) }
-                  : { backgroundColor: 'transparent', color: swatch.hex, boxShadow: `inset 0 0 0 1px ${swatch.hex}` }
-              }
+              style={style}
             >
               {checked ? <Check className="size-4" strokeWidth={3} /> : null}
               {friend.name}
@@ -172,67 +189,33 @@ export function BookCard({
       <div className="mt-2">
         {reader && readerSwatch ? (
           <div className="flex min-h-11 items-center gap-2" data-testid={`reading-${book.id}`}>
-            <button
-              type="button"
-              className="flex h-11 min-w-0 flex-1 items-center gap-2 rounded-full px-3 text-left text-[15px] font-bold"
+            <div
+              className="flex h-11 min-w-0 flex-1 items-center gap-2 rounded-full px-3 text-[15px] font-bold"
               style={{ backgroundColor: readerSwatch.hex, color: inkFor(readerSwatch.hex) }}
-              onClick={() => setPicking((open) => !open)}
-              aria-expanded={picking}
             >
               <span className="shrink-0 text-[13px] font-medium opacity-90">읽는 중</span>
               <span className="truncate">{reader.name}</span>
-            </button>
-            <button
-              type="button"
-              className="h-11 shrink-0 rounded-full px-3 text-[15px] font-bold text-muted-foreground"
-              onClick={() => {
-                setPicking(false)
-                void shelf.setReading(book.id, null)
-              }}
-            >
-              해제
-            </button>
+            </div>
+            {readerId === meId ? (
+              <button
+                type="button"
+                className="h-11 shrink-0 rounded-full px-3 text-[15px] font-bold text-muted-foreground"
+                onClick={() => void shelf.setReading(book.id, null)}
+              >
+                해제
+              </button>
+            ) : null}
           </div>
         ) : (
           <button
             type="button"
             className="flex h-11 w-full items-center justify-center rounded-full text-[15px] font-bold text-x ring-1 ring-inset ring-x/40"
             data-testid={`reading-${book.id}`}
-            aria-expanded={picking}
-            onClick={() => setPicking((open) => !open)}
+            onClick={() => void shelf.setReading(book.id, meId)}
           >
             읽는 중
           </button>
         )}
-        {picking ? (
-          <div className="mt-2 border-t border-border pt-2">
-            <p className="pb-2 text-[13px] text-muted-foreground">누가 읽고 있는지 눌러 주세용.</p>
-            <div className="flex flex-wrap gap-2">
-              {friends.map((friend) => {
-                const active = friend.id === readerId
-                const swatch = paletteColor(friend.color)
-                return (
-                  <button
-                    key={friend.id}
-                    type="button"
-                    className="inline-flex h-11 items-center rounded-full px-3 text-[15px] font-bold"
-                    style={
-                      active
-                        ? { backgroundColor: swatch.hex, color: inkFor(swatch.hex) }
-                        : { color: swatch.hex, boxShadow: `inset 0 0 0 1px ${swatch.hex}` }
-                    }
-                    onClick={() => {
-                      setPicking(false)
-                      void shelf.setReading(book.id, active ? null : friend.id)
-                    }}
-                  >
-                    {friend.name}
-                  </button>
-                )
-              })}
-            </div>
-          </div>
-        ) : null}
       </div>
     </article>
   )
