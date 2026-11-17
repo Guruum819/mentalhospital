@@ -94,7 +94,6 @@ export function BookCard({
   const meSwatch = me ? paletteColor(me.color) : null
   const mineReading = readerId === meId
   const mineRead = Boolean(shelf.data.reads[book.id]?.[meId])
-  const nudged = (shelf.data.nudges[book.id] ?? []).includes(meId)
   const remaining = nudgesRemaining(shelf.data.nudgeSends[meId] ?? [], now)
   const canNudge = Boolean(reader && me && !mineReading)
   const outOfNudges = remaining === 0
@@ -229,7 +228,7 @@ export function BookCard({
                   type="button"
                   data-testid="nudge-reader"
                   className="h-9 shrink-0 rounded-full bg-x px-3 text-[13px] font-bold text-white disabled:opacity-50"
-                  disabled={nudged || outOfNudges || poking}
+                  disabled={outOfNudges}
                   onClick={() => {
                     void shelf.nudge(book.id).then((ok) => {
                       if (!ok) return

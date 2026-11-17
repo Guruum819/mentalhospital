@@ -567,10 +567,6 @@ export function ShelfProvider({ children }: { children: ReactNode }) {
           toast('지금 읽는 친구에게만 독촉할 수 있어용')
           return false
         }
-        if ((shelf.nudges[bookId] ?? []).includes(me)) {
-          toast('이미 독촉했어용')
-          return false
-        }
         if (nudgesRemaining(shelf.nudgeSends[me] ?? [], Date.now()) === 0) {
           toast('오늘 독촉은 다 썼어용')
           return false

@@ -303,7 +303,6 @@ function createFirebaseRepo(): ShelfRepository {
     async setNudge(bookId, friendId, at) {
       const readerId = current.reading[bookId]
       if (!readerId || readerId === friendId) return
-      if ((current.nudges[bookId] ?? []).includes(friendId)) return
       const previous = current.nudgeSends[friendId] ?? []
       const next = nextNudgeSends(previous, at)
       if (!next) throw new Error('오늘 독촉은 다 썼어용')
@@ -575,12 +574,11 @@ function createDemoRepo(): ShelfRepository {
       const readerId = current.reading[bookId]
       if (!readerId || readerId === friendId) return
       const ids = current.nudges[bookId] ?? []
-      if (ids.includes(friendId)) return
       const sends = nextNudgeSends(current.nudgeSends[friendId] ?? [], at)
       if (!sends) throw new Error('오늘 독촉은 다 썼어용')
       let next: ShelfData = {
         ...current,
-        nudges: { ...current.nudges, [bookId]: [...ids, friendId] },
+        nudges: { ...current.nudges, [bookId]: ids.includes(friendId) ? ids : [...ids, friendId] },
         nudgeSends: { ...current.nudgeSends, [friendId]: sends },
       }
       const built = nudgeNotice(current.reading[bookId], bookId, friendId, at)
