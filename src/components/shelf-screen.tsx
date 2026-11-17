@@ -279,7 +279,7 @@ export function ShelfScreen() {
 }
 
 function confirmTitle(confirm: Confirm) {
-  if (confirm?.kind === 'delete-friend') return `${confirm.friend.name} 님을 정말 뺄 거예용?`
+  if (confirm?.kind === 'delete-friend') return `${confirm.friend.name} 님의 계정을 정말 지울 거예용?`
   if (confirm?.kind === 'delete-book') return '이 책을 정말 지울 거예용?'
   if (confirm?.kind === 'restore') return '처음 구성으로 되돌릴 거예용?'
   if (confirm?.kind === 'clear') return '서재를 정말 비울 거예용?'
@@ -287,7 +287,7 @@ function confirmTitle(confirm: Confirm) {
 }
 
 function confirmText(confirm: Confirm) {
-  if (confirm?.kind === 'delete-friend') return '읽음이랑 읽는 중, 한 줄 평이 사라지고 색은 다시 고를 수 있어용.'
+  if (confirm?.kind === 'delete-friend') return '이 프로필의 읽은 기록이랑 읽는 중, 한 줄 평은 사라져용. 이 사람이 올린 책은 서재에 그대로 남아용.'
   if (confirm?.kind === 'delete-book') return '읽은 기록이랑 리뷰도 같이 사라져용.'
   if (confirm?.kind === 'restore') return '책 목록만 비울 거예용. 프로필은 그대로예용.'
   if (confirm?.kind === 'clear') return '책이랑 한 줄 평만 지울 거예용. 프로필은 그대로예용.'
