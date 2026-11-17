@@ -1,0 +1,28 @@
+{
+  "rules": {
+    "settings": {
+      ".read": true,
+      ".write": true
+    },
+    "friends": {
+      ".read": true,
+      ".write": true
+    },
+    "books": {
+      ".read": true,
+      ".write": true
+    },
+    "reads": {
+      ".read": true,
+      ".write": true
+    },
+    "reading": {
+      ".read": true,
+      ".write": true
+    },
+    "reviews": {
+      ".read": true,
+      ".write": true
+    }
+  }
+}

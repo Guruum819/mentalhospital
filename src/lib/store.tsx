@@ -1,0 +1,401 @@
+import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { toast } from 'sonner'
+import { toKoreanError } from './errors.ts'
+import {
+  MAX_BOOKS,
+  cleanCover,
+  cleanPhoto,
+  cleanReview,
+  snapRating,
+  cleanText,
+  cleanBirthday,
+  colorTaken,
+  sameIdentity,
+  newId,
+  nextOrder,
+  toggledRead,
+  withRead,
+  withReading,
+  MAX_AUTHOR,
+  MAX_NAME,
+  MAX_TITLE,
+} from './model.ts'
+import { PALETTE } from './palette.ts'
+import { clearUnlock, hashPasscode, isUnlocked, randomSalt, rememberUnlock } from './passcode.ts'
+import { createRepository, emptyReplacement, type ShelfRepository } from './repo.ts'
+import { starterShelf } from './seed.ts'
+import type { Book, Friend, ShelfData } from './types.ts'
+
+type BookInput = {
+  title: string
+  author: string
+  coverUrl: string | null
+  buyerId: string
+}
+
+type ShelfApi = {
+  data: ShelfData
+  ready: boolean
+  error: string | null
+  connected: boolean
+  mode: ShelfRepository['mode']
+  unlocked: boolean
+  unlock: (passcode: string, remember: boolean) => Promise<boolean>
+  setPasscode: (next: string | null, current: string | null) => Promise<boolean>
+  addFriend: (name: string, color: string, photo: string | null, birthday: string) => Promise<string | null>
+  updateFriend: (id: string, name: string, color: string, photo: string | null, birthday: string) => Promise<boolean>
+  removeFriend: (id: string) => Promise<boolean>
+  addReview: (bookId: string, friendId: string, text: string, rating: number) => Promise<boolean>
+  deleteReview: (reviewId: string) => Promise<boolean>
+  addBook: (input: BookInput) => Promise<boolean>
+  updateBook: (id: string, input: BookInput) => Promise<boolean>
+  removeBook: (id: string) => Promise<boolean>
+  toggleRead: (bookId: string, friendId: string) => Promise<void>
+  setReading: (bookId: string, friendId: string | null) => Promise<void>
+  restoreStarter: () => Promise<boolean>
+  clearShelf: () => Promise<boolean>
+}
+
+const ShelfContext = createContext<ShelfApi | null>(null)
+
+type Pending = {
+  reads: Map<string, boolean>
+  reading: Map<string, string | null>
+}
+
+function cellKey(bookId: string, friendId: string) {
+  return `${bookId}/${friendId}`
+}
+
+function applyPending(base: ShelfData, pending: Pending): ShelfData {
+  let reads = base.reads
+  for (const [key, read] of pending.reads) {
+    const slash = key.indexOf('/')
+    reads = withRead(reads, key.slice(0, slash), key.slice(slash + 1), read)
+  }
+  let reading = base.reading
+  for (const [bookId, friendId] of pending.reading) {
+    reading = withReading(reading, bookId, friendId)
+  }
+  return { ...base, reads, reading }
+}
+
+export function ShelfProvider({ children }: { children: ReactNode }) {
+  const [repo] = useState(createRepository)
+  const [data, setData] = useState<ShelfData>(starterShelf)
+  const dataRef = useRef(data)
+  const pendingRef = useRef<Pending>({ reads: new Map(), reading: new Map() })
+  const [pendingTick, setPendingTick] = useState(0)
+  const [ready, setReady] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [connected, setConnected] = useState(false)
+  const [unlockTick, setUnlockTick] = useState(0)
+
+  useEffect(() => {
+    return repo.subscribe(
+      (next, meta) => {
+        dataRef.current = next
+        for (const [key, desired] of pendingRef.current.reads) {
+          const slash = key.indexOf('/')
+          const actual = Boolean(next.reads[key.slice(0, slash)]?.[key.slice(slash + 1)])
+          if (actual === desired) pendingRef.current.reads.delete(key)
+        }
+        for (const [bookId, friendId] of pendingRef.current.reading) {
+          const actual = next.reading[bookId] ?? null
+          if (actual === friendId) pendingRef.current.reading.delete(bookId)
+        }
+        setData(next)
+        setConnected(meta.connected)
+        setError(null)
+        setReady(true)
+      },
+      (message) => {
+        setError(toKoreanError(new Error(message)))
+        setConnected(false)
+        setReady(true)
+      },
+    )
+  }, [repo])
+
+  const shown = useMemo(
+    () => applyPending(data, pendingRef.current),
+    [data, pendingTick],
+  )
+
+  function bump() {
+    setPendingTick((tick) => tick + 1)
+  }
+
+  async function guard(work: () => Promise<void>) {
+    try {
+      await work()
+      return true
+    } catch (caught) {
+      toast.error(toKoreanError(caught))
+      return false
+    }
+  }
+
+  const api = useMemo<ShelfApi>(() => {
+    const shownNow = () => applyPending(dataRef.current, pendingRef.current)
+
+    return {
+      data: shown,
+      ready,
+      error,
+      connected,
+      mode: repo.mode,
+      unlocked: isUnlocked(shown.passcodeHash),
+      async unlock(passcode, remember) {
+        const { passcodeSalt, passcodeHash } = dataRef.current
+        if (!passcodeHash || !passcodeSalt) return true
+        const hash = await hashPasscode(passcode, passcodeSalt)
+        if (hash !== passcodeHash) return false
+        rememberUnlock(hash, remember)
+        setUnlockTick((tick) => tick + 1)
+        return true
+      },
+      async setPasscode(next, current) {
+        const shelf = dataRef.current
+        if (shelf.passcodeHash) {
+          if (!current || !shelf.passcodeSalt) {
+            toast.error('지금 암호를 입력해 주세요.')
+            return false
+          }
+          const currentHash = await hashPasscode(current, shelf.passcodeSalt)
+          if (currentHash !== shelf.passcodeHash) {
+            toast.error('지금 암호가 맞지 않아요.')
+            return false
+          }
+        }
+        if (!next) {
+          const ok = await guard(async () => {
+            await repo.replaceShelf({ ...dataRef.current, passcodeSalt: null, passcodeHash: null })
+          })
+          if (ok) {
+            clearUnlock()
+            setUnlockTick((tick) => tick + 1)
+          }
+          return ok
+        }
+        const salt = randomSalt()
+        const hash = await hashPasscode(next, salt)
+        rememberUnlock(hash, true)
+        const ok = await guard(async () => {
+          await repo.replaceShelf({ ...dataRef.current, passcodeSalt: salt, passcodeHash: hash })
+        })
+        setUnlockTick((tick) => tick + 1)
+        if (ok) toast.success('암호를 저장했어요.')
+        return ok
+      },
+      async addFriend(name, color, photo, birthday) {
+        const clean = cleanText(name, MAX_NAME)
+        const born = cleanBirthday(birthday)
+        if (!clean) {
+          toast.error('이름을 입력해 주세요.')
+          return null
+        }
+        if (!born) {
+          toast.error('생일을 골라 주세요.')
+          return null
+        }
+        const shelf = shownNow()
+        if (shelf.friends.length >= PALETTE.length) {
+          toast.error('모임은 10명까지예요. 프로필을 지우면 빈자리와 그 색을 다시 쓸 수 있어요.')
+          return null
+        }
+        if (sameIdentity(shelf.friends, clean, born)) {
+          toast.error('같은 이름과 생일이 이미 있어요. 로그인에서 들어가 주세요.')
+          return null
+        }
+        if (colorTaken(shelf.friends, color)) {
+          toast.error('그 색은 다른 친구가 쓰고 있어요.')
+          return null
+        }
+        const storedPhoto = cleanPhoto(photo)
+        if (photo && !storedPhoto) {
+          toast.error('사진이 너무 커요. 조금 더 작게 잘라 주세요.')
+          return null
+        }
+        const friend: Friend = {
+          id: newId('friend'),
+          name: clean,
+          color,
+          order: nextOrder(shelf.friends),
+          photo: storedPhoto,
+          birthday: born,
+        }
+        const ok = await guard(() => repo.saveFriend(friend))
+        return ok ? friend.id : null
+      },
+      async updateFriend(id, name, color, photo, birthday) {
+        const clean = cleanText(name, MAX_NAME)
+        const born = cleanBirthday(birthday)
+        if (!clean) {
+          toast.error('이름을 입력해 주세요.')
+          return false
+        }
+        if (!born) {
+          toast.error('생일을 골라 주세요.')
+          return false
+        }
+        const shelf = shownNow()
+        const current = shelf.friends.find((friend) => friend.id === id)
+        if (!current) return false
+        if (sameIdentity(shelf.friends, clean, born, id)) {
+          toast.error('같은 이름과 생일이 이미 있어요.')
+          return false
+        }
+        if (colorTaken(shelf.friends, color, id)) {
+          toast.error('그 색은 다른 친구가 쓰고 있어요.')
+          return false
+        }
+        const storedPhoto = cleanPhoto(photo)
+        if (photo && !storedPhoto) {
+          toast.error('사진이 너무 커요. 조금 더 작게 잘라 주세요.')
+          return false
+        }
+        return guard(() => repo.saveFriend({ ...current, name: clean, color, photo: storedPhoto, birthday: born }))
+      },
+      removeFriend(id) {
+        return guard(() => repo.deleteFriend(id))
+      },
+      async addReview(bookId, friendId, text, rating) {
+        const clean = cleanReview(text)
+        const stars = snapRating(rating)
+        if (!clean) {
+          toast.error('한줄평을 입력해 주세요.')
+          return false
+        }
+        if (stars === null) {
+          toast.error('별점은 0에서 5까지, 0.5 단위로 골라 주세요.')
+          return false
+        }
+        const shelf = shownNow()
+        if (!shelf.books.some((book) => book.id === bookId) || !shelf.friends.some((friend) => friend.id === friendId)) {
+          return false
+        }
+        return guard(() =>
+          repo.addReview({
+            id: newId('review'),
+            bookId,
+            friendId,
+            text: clean,
+            createdAt: Date.now(),
+            rating: stars,
+          }),
+        )
+      },
+      deleteReview(reviewId) {
+        return guard(() => repo.deleteReview(reviewId))
+      },
+      async addBook(input) {
+        const title = cleanText(input.title, MAX_TITLE)
+        if (!title) {
+          toast.error('책 제목을 입력해 주세요.')
+          return false
+        }
+        const shelf = shownNow()
+        if (shelf.books.length >= MAX_BOOKS) {
+          toast.error(`책은 ${MAX_BOOKS}권까지 올릴 수 있어요.`)
+          return false
+        }
+        if (!shelf.friends.some((friend) => friend.id === input.buyerId)) {
+          toast.error('프로필로 들어간 뒤에 책을 올릴 수 있어요.')
+          return false
+        }
+        const book: Book = {
+          id: newId('book'),
+          title,
+          author: cleanText(input.author, MAX_AUTHOR) ?? '',
+          coverUrl: cleanCover(input.coverUrl),
+          buyerId: input.buyerId,
+          order: nextOrder(shelf.books),
+        }
+        return guard(() => repo.saveBook(book))
+      },
+      async updateBook(id, input) {
+        const title = cleanText(input.title, MAX_TITLE)
+        if (!title) {
+          toast.error('책 제목을 입력해 주세요.')
+          return false
+        }
+        const shelf = shownNow()
+        const current = shelf.books.find((book) => book.id === id)
+        if (!current) return false
+        if (!shelf.friends.some((friend) => friend.id === input.buyerId)) {
+          toast.error('프로필로 들어간 뒤에 책을 올릴 수 있어요.')
+          return false
+        }
+        return guard(() =>
+          repo.saveBook({
+            ...current,
+            title,
+            author: cleanText(input.author, MAX_AUTHOR) ?? '',
+            coverUrl: cleanCover(input.coverUrl),
+            buyerId: input.buyerId,
+          }),
+        )
+      },
+      removeBook(id) {
+        return guard(() => repo.deleteBook(id))
+      },
+      async toggleRead(bookId, friendId) {
+        const before = shownNow()
+        const change = toggledRead(before, bookId, friendId)
+        const key = cellKey(bookId, friendId)
+        const read = !before.reads[bookId]?.[friendId]
+        pendingRef.current.reads.set(key, read)
+        if (change.clearedReading) pendingRef.current.reading.set(bookId, null)
+        bump()
+        try {
+          await repo.setRead(bookId, friendId, read, change.clearedReading)
+          if (pendingRef.current.reads.get(key) === read) pendingRef.current.reads.delete(key)
+          if (change.clearedReading && pendingRef.current.reading.get(bookId) === null) {
+            pendingRef.current.reading.delete(bookId)
+          }
+          bump()
+          if (change.clearedReading) {
+            const name = before.friends.find((friend) => friend.id === friendId)?.name ?? '친구'
+            toast(`${name} 님은 다 읽은 것으로 체크해서, 읽는 중에서 뺐어요.`)
+          }
+        } catch (caught) {
+          pendingRef.current.reads.delete(key)
+          if (change.clearedReading) pendingRef.current.reading.delete(bookId)
+          bump()
+          toast.error(toKoreanError(caught))
+        }
+      },
+      async setReading(bookId, friendId) {
+        pendingRef.current.reading.set(bookId, friendId)
+        bump()
+        try {
+          await repo.setReading(bookId, friendId)
+          if (pendingRef.current.reading.get(bookId) === friendId) {
+            pendingRef.current.reading.delete(bookId)
+          }
+          bump()
+        } catch (caught) {
+          pendingRef.current.reading.delete(bookId)
+          bump()
+          toast.error(toKoreanError(caught))
+        }
+      },
+      restoreStarter() {
+        return guard(() => repo.replaceShelf(starterShelf(dataRef.current)))
+      },
+      clearShelf() {
+        return guard(() => repo.replaceShelf(emptyReplacement(dataRef.current)))
+      },
+    }
+    // shown is the render snapshot; mutations read the refs.
+  }, [shown, ready, error, connected, repo, unlockTick])
+
+  return <ShelfContext.Provider value={api}>{children}</ShelfContext.Provider>
+}
+
+export function useShelf() {
+  const value = useContext(ShelfContext)
+  if (!value) throw new Error('서재 화면 밖에서 상태를 읽었어요.')
+  return value
+}
