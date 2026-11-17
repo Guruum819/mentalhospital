@@ -162,6 +162,8 @@ test('book sort puts unrated last and comment sort follows likes', () => {
   assert.deepEqual(newest.map((book) => book.id), ['new', 'mid', 'old'])
   const popular = sortedBooks(books, 'popular', reviews, {}, ['a'])
   assert.deepEqual(popular.map((book) => book.id), ['old', 'mid', 'new'])
+  const popularLow = sortedBooks(books, 'popular', reviews, {}, ['a'], true)
+  assert.deepEqual(popularLow.map((book) => book.id), ['mid', 'old', 'new'])
   const read = sortedBooks(books, 'read', reviews, { mid: { a: true }, old: { a: true } }, ['a'])
   assert.equal(read[0]?.id === 'mid' || read[0]?.id === 'old', true)
   assert.equal(read[2]?.id, 'new')

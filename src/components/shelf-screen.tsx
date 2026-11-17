@@ -52,6 +52,7 @@ export function ShelfScreen() {
   const [account, setAccount] = useState<'app' | 'login' | 'signup' | 'edit'>('app')
   const [stack, setStack] = useState<View[]>([{ name: 'home' }])
   const [sort, setSort] = useState<BookSort>('new')
+  const [popularAscending, setPopularAscending] = useState(false)
   const [confirm, setConfirm] = useState<Confirm>(null)
   const [confirming, setConfirming] = useState(false)
   const [guideOpen, setGuideOpen] = useState(false)
@@ -252,7 +253,21 @@ export function ShelfScreen() {
     shelf.data.reviews,
     shelf.data.reads,
     members.map((friend) => friend.id),
+    popularAscending,
   )
+
+  function chooseSort(id: BookSort) {
+    if (id !== 'popular') {
+      setSort(id)
+      return
+    }
+    if (sort === 'popular') {
+      setPopularAscending((ascending) => !ascending)
+      return
+    }
+    setPopularAscending(false)
+    setSort('popular')
+  }
   const deviceAccounts = readAccounts()
     .map((id) => members.find((friend) => friend.id === id))
     .filter((friend): friend is Friend => Boolean(friend && friend.id !== me.id))
@@ -406,9 +421,9 @@ export function ShelfScreen() {
                     role="tab"
                     aria-selected={sort === id}
                     className={`h-11 text-[14px] font-bold ${sort === id ? 'text-x underline decoration-x decoration-2 underline-offset-8' : 'text-muted-foreground'}`}
-                    onClick={() => setSort(id)}
+                    onClick={() => chooseSort(id)}
                   >
-                    {label}
+                    {id === 'popular' && sort === 'popular' ? `인기순 ${popularAscending ? '↑' : '↓'}` : label}
                   </button>
                 ))}
               </div>

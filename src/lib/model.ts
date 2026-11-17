@@ -691,6 +691,7 @@ export function sortedBooks(
   reviews: readonly Review[],
   reads: ReadMap,
   friendIds: readonly string[],
+  popularAscending = false,
 ): Book[] {
   const copy = books.slice()
   const byOrder = (a: Book, b: Book) => b.order - a.order || a.title.localeCompare(b.title, 'ko')
@@ -701,7 +702,8 @@ export function sortedBooks(
       if (left === null && right === null) return byOrder(a, b)
       if (left === null) return 1
       if (right === null) return -1
-      return right - left || byOrder(a, b)
+      const byStars = popularAscending ? left - right : right - left
+      return byStars || byOrder(a, b)
     })
     return copy
   }
