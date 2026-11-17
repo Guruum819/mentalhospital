@@ -4,7 +4,7 @@ import { averageRating, MAX_REVIEW } from '@/lib/model'
 import { useShelf } from '@/lib/store'
 import type { Book, Friend } from '@/lib/types'
 import { Avatar } from '@/components/avatar-editor'
-import { BookCard } from '@/components/book-card'
+import { BookCard, BookMenu } from '@/components/book-card'
 import { StarRating } from '@/components/star-rating'
 import { Button } from '@/components/ui/button'
 
@@ -13,11 +13,13 @@ export function BookDetail({
   me,
   onBack,
   onEdit,
+  onDelete,
 }: {
   book: Book
   me: Friend
   onBack: () => void
   onEdit: (book: Book) => void
+  onDelete: (book: Book) => void
 }) {
   const shelf = useShelf()
   const [text, setText] = useState('')
@@ -47,9 +49,16 @@ export function BookDetail({
             <ChevronLeft className="size-6" />
           </button>
           <h1 className="pointer-events-none absolute inset-x-14 truncate text-center text-[17px] font-bold">한 줄 평</h1>
+          {book.buyerId === me.id ? (
+            <span className="relative z-10 ml-auto">
+              <BookMenu canDelete onEdit={() => onEdit(book)} onDelete={() => onDelete(book)} />
+            </span>
+          ) : (
+            <span className="ml-auto size-11" />
+          )}
         </div>
       </header>
-      <BookCard book={book} onEdit={onEdit} />
+      <BookCard book={book} meId={me.id} onEdit={onEdit} onDelete={onDelete} />
       <section>
         <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
           <h2 className="text-[17px] font-bold">한 줄 평</h2>

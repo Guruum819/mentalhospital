@@ -21,6 +21,7 @@ import {
   MAX_TITLE,
 } from './model.ts'
 import { PALETTE } from './palette.ts'
+import { readWho } from './identity.ts'
 import { clearUnlock, hashPasscode, isUnlocked, randomSalt, rememberUnlock } from './passcode.ts'
 import { createRepository, emptyReplacement, type ShelfRepository } from './repo.ts'
 import { starterShelf } from './seed.ts'
@@ -340,7 +341,13 @@ export function ShelfProvider({ children }: { children: ReactNode }) {
         )
       },
       removeBook(id) {
-        return guard(() => repo.deleteBook(id))
+        const shelf = shownNow()
+        const book = shelf.books.find((item) => item.id === id)
+        if (!book || book.buyerId !== readWho()) {
+          toast.error('이 책을 올린 사람만 지울 수 있어용.')
+          return Promise.resolve(false)
+        }
+        return guard(() => repo.deleteBook(id, shelf.reviews))
       },
       async toggleRead(bookId, friendId) {
         const before = shownNow()

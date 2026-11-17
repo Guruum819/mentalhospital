@@ -94,7 +94,10 @@ export function ShelfScreen() {
         setPage('home')
       }
     }
-    if (confirm.kind === 'delete-book') ok = await shelf.removeBook(confirm.book.id)
+    if (confirm.kind === 'delete-book') {
+      ok = await shelf.removeBook(confirm.book.id)
+      if (ok) setDetailId(null)
+    }
     if (confirm.kind === 'clear') ok = await shelf.clearShelf()
     if (confirm.kind === 'restore') ok = await shelf.restoreStarter()
     setConfirming(false)
@@ -189,7 +192,13 @@ export function ShelfScreen() {
           onClearBooks={() => setConfirm({ kind: 'clear' })}
         />
       ) : detail ? (
-        <BookDetail book={detail} me={me} onBack={() => setDetailId(null)} onEdit={(item) => { setEditingBook(item); setBookOpen(true) }} />
+        <BookDetail
+          book={detail}
+          me={me}
+          onBack={() => setDetailId(null)}
+          onEdit={(item) => { setEditingBook(item); setBookOpen(true) }}
+          onDelete={(item) => setConfirm({ kind: 'delete-book', book: item })}
+        />
       ) : (
       <>
       <header className="sticky top-0 z-20 border-b border-border bg-background/80 backdrop-blur-md pt-[env(safe-area-inset-top)]">
@@ -238,11 +247,13 @@ export function ShelfScreen() {
             <BookCard
               key={book.id}
               book={book}
+              meId={me.id}
               onOpen={setDetailId}
               onEdit={(item) => {
                 setEditingBook(item)
                 setBookOpen(true)
               }}
+              onDelete={(item) => setConfirm({ kind: 'delete-book', book: item })}
             />
           ))
         )}
@@ -269,7 +280,7 @@ export function ShelfScreen() {
 
 function confirmTitle(confirm: Confirm) {
   if (confirm?.kind === 'delete-friend') return `${confirm.friend.name} 님을 정말 뺄 거예용?`
-  if (confirm?.kind === 'delete-book') return `「${confirm.book.title}」 정말 지울 거예용?`
+  if (confirm?.kind === 'delete-book') return '이 책을 정말 지울 거예용?'
   if (confirm?.kind === 'restore') return '처음 구성으로 되돌릴 거예용?'
   if (confirm?.kind === 'clear') return '서재를 정말 비울 거예용?'
   return ''
@@ -277,7 +288,7 @@ function confirmTitle(confirm: Confirm) {
 
 function confirmText(confirm: Confirm) {
   if (confirm?.kind === 'delete-friend') return '읽음이랑 읽는 중, 한 줄 평이 사라지고 색은 다시 고를 수 있어용.'
-  if (confirm?.kind === 'delete-book') return '읽음이랑 읽는 중, 한 줄 평도 같이 사라져용.'
+  if (confirm?.kind === 'delete-book') return '읽은 기록이랑 리뷰도 같이 사라져용.'
   if (confirm?.kind === 'restore') return '책 목록만 비울 거예용. 프로필은 그대로예용.'
   if (confirm?.kind === 'clear') return '책이랑 한 줄 평만 지울 거예용. 프로필은 그대로예용.'
   return ''

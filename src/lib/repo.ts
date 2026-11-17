@@ -23,7 +23,7 @@ export interface ShelfRepository {
   saveFriend: (friend: Friend) => Promise<void>
   deleteFriend: (friendId: string) => Promise<void>
   saveBook: (book: Book) => Promise<void>
-  deleteBook: (bookId: string) => Promise<void>
+  deleteBook: (bookId: string, reviews?: readonly Review[]) => Promise<void>
   setRead: (bookId: string, friendId: string, read: boolean, clearReading: boolean) => Promise<void>
   setReading: (bookId: string, friendId: string | null) => Promise<void>
   addReview: (review: Review) => Promise<void>
@@ -125,13 +125,13 @@ function createFirebaseRepo(): ShelfRepository {
         },
       })
     },
-    async deleteBook(bookId) {
+    async deleteBook(bookId, reviews = current.reviews) {
       const values: Record<string, unknown> = {
         [`books/${bookId}`]: null,
         [`reads/${bookId}`]: null,
         [`reading/${bookId}`]: null,
       }
-      for (const review of current.reviews) {
+      for (const review of reviews) {
         if (review.bookId === bookId) values[`reviews/${review.id}`] = null
       }
       await write(values)
@@ -257,18 +257,19 @@ function createDemoRepo(): ShelfRepository {
         : [...current.books, book]
       persist({ ...current, books }, true)
     },
-    async deleteBook(bookId) {
+    async deleteBook(bookId, reviews = current.reviews) {
       const reads = { ...current.reads }
       delete reads[bookId]
       const reading = { ...current.reading }
       delete reading[bookId]
+      const dropped = new Set(reviews.filter((review) => review.bookId === bookId).map((review) => review.id))
       persist(
         {
           ...current,
           books: current.books.filter((book) => book.id !== bookId),
           reads,
           reading,
-          reviews: current.reviews.filter((review) => review.bookId !== bookId),
+          reviews: current.reviews.filter((review) => review.bookId !== bookId && !dropped.has(review.id)),
         },
         true,
       )

@@ -1,19 +1,68 @@
 import { useState } from 'react'
-import { Check, ImageOff } from 'lucide-react'
+import { Check, ImageOff, MoreHorizontal } from 'lucide-react'
 import { averageRating, countReads } from '@/lib/model'
 import { inkFor, paletteColor } from '@/lib/palette'
 import { useShelf } from '@/lib/store'
 import type { Book } from '@/lib/types'
 import { Avatar } from '@/components/avatar-editor'
 import { StarRating } from '@/components/star-rating'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+
+export function BookMenu({
+  canDelete,
+  onEdit,
+  onDelete,
+}: {
+  canDelete: boolean
+  onEdit: () => void
+  onDelete?: () => void
+}) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          aria-label="책 메뉴"
+          className="grid size-11 shrink-0 place-items-center rounded-full text-foreground hover:bg-muted"
+        >
+          <MoreHorizontal className="size-5" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="min-w-36">
+        <DropdownMenuItem className="h-11 px-3 text-[15px]" onSelect={onEdit}>
+          수정
+        </DropdownMenuItem>
+        {canDelete && onDelete ? (
+          <DropdownMenuItem
+            variant="destructive"
+            className="h-11 px-3 text-[15px]"
+            data-testid="delete-book"
+            onSelect={onDelete}
+          >
+            삭제
+          </DropdownMenuItem>
+        ) : null}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
 
 export function BookCard({
   book,
+  meId,
   onEdit,
+  onDelete,
   onOpen,
 }: {
   book: Book
+  meId: string
   onEdit: (book: Book) => void
+  onDelete: (book: Book) => void
   onOpen?: (bookId: string) => void
 }) {
   const shelf = useShelf()
@@ -64,13 +113,11 @@ export function BookCard({
             <h2 data-testid="book-title" className="min-w-0 text-[17px] leading-snug font-bold tracking-tight">
               {book.title}
             </h2>
-            <button
-              type="button"
-              className="h-11 shrink-0 px-2 text-[15px] font-bold text-x"
-              onClick={() => onEdit(book)}
-            >
-              수정
-            </button>
+            <BookMenu
+              canDelete={book.buyerId === meId}
+              onEdit={() => onEdit(book)}
+              onDelete={() => onDelete(book)}
+            />
           </div>
           <p className="truncate text-[15px] text-muted-foreground">{book.author || '저자 미상'}</p>
           {average !== null ? (
