@@ -268,18 +268,18 @@ export function ShelfScreen() {
 }
 
 function confirmTitle(confirm: Confirm) {
-  if (confirm?.kind === 'delete-friend') return `${confirm.friend.name} 님을 정말 뺄거예용?`
-  if (confirm?.kind === 'delete-book') return `「${confirm.book.title}」 정말 지울거예용?`
-  if (confirm?.kind === 'restore') return '처음 구성으로 되돌릴거예용?'
-  if (confirm?.kind === 'clear') return '서재를 정말 비울거예용?'
+  if (confirm?.kind === 'delete-friend') return `${confirm.friend.name} 님을 정말 뺄 거예용?`
+  if (confirm?.kind === 'delete-book') return `「${confirm.book.title}」 정말 지울 거예용?`
+  if (confirm?.kind === 'restore') return '처음 구성으로 되돌릴 거예용?'
+  if (confirm?.kind === 'clear') return '서재를 정말 비울 거예용?'
   return ''
 }
 
 function confirmText(confirm: Confirm) {
-  if (confirm?.kind === 'delete-friend') return '읽음이랑 읽는 중, 한줄평이 사라지고 색은 다시 고를 수 있어용.'
-  if (confirm?.kind === 'delete-book') return '읽음이랑 읽는 중, 한줄평도 같이 사라져용.'
+  if (confirm?.kind === 'delete-friend') return '읽음이랑 읽는 중, 한 줄 평이 사라지고 색은 다시 고를 수 있어용.'
+  if (confirm?.kind === 'delete-book') return '읽음이랑 읽는 중, 한 줄 평도 같이 사라져용.'
   if (confirm?.kind === 'restore') return '책 목록만 비울 거예용. 프로필은 그대로예용.'
-  if (confirm?.kind === 'clear') return '책이랑 한줄평만 지울 거예용. 프로필은 그대로예용.'
+  if (confirm?.kind === 'clear') return '책이랑 한 줄 평만 지울 거예용. 프로필은 그대로예용.'
   return ''
 }
 

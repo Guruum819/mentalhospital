@@ -54,7 +54,7 @@ export function BookCard({
           ) : (
             <div className="flex aspect-[2/3] w-full flex-col items-center justify-center gap-1 rounded-md bg-muted text-muted-foreground">
               <ImageOff className="size-4" />
-              <span className="px-1 text-center text-[11px] leading-tight">표지 없어용</span>
+              <span className="px-1 text-center text-[11px] leading-tight">표지가 없어용</span>
             </div>
           )}
         </div>
@@ -86,7 +86,7 @@ export function BookCard({
                 <span className="text-muted-foreground">구매</span>
               </>
             ) : (
-              <span className="text-muted-foreground">구매자 없어용</span>
+              <span className="text-muted-foreground">구매자가 없어용</span>
             )}
           </p>
           <p className="text-[13px] text-muted-foreground">

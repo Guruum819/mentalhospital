@@ -29,7 +29,7 @@ export function ProfilePage({ me, onBack, onEdit }: { me: Friend; onBack: () => 
         <div className="mt-3 flex items-start justify-between gap-3">
           <div className="min-w-0">
             <h2 className="truncate text-xl font-extrabold tracking-tight">{me.name}</h2>
-            <p className="text-[15px] text-muted-foreground">한줄평 {posts.length}</p>
+            <p className="text-[15px] text-muted-foreground">한 줄 평 {posts.length}</p>
           </div>
           <Button type="button" variant="outline" className="h-9 shrink-0 px-4" onClick={onEdit}>
             프로필 수정
@@ -38,7 +38,7 @@ export function ProfilePage({ me, onBack, onEdit }: { me: Friend; onBack: () => 
       </div>
       <ul className="mt-4 border-t border-border">
         {posts.length === 0 ? (
-          <li className="px-4 py-8 text-[15px] text-muted-foreground">아직 한줄평이 없어용.</li>
+          <li className="px-4 py-8 text-[15px] text-muted-foreground">아직 한 줄 평이 없어용.</li>
         ) : (
           posts.map((review) => {
             const book = shelf.data.books.find((item) => item.id === review.bookId)

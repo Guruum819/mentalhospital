@@ -46,13 +46,13 @@ export function BookDetail({
           <button type="button" className="grid size-11 place-items-center" onClick={onBack} aria-label="서재로">
             <ChevronLeft className="size-6" />
           </button>
-          <h1 className="pointer-events-none absolute inset-x-14 truncate text-center text-[17px] font-bold">한줄평</h1>
+          <h1 className="pointer-events-none absolute inset-x-14 truncate text-center text-[17px] font-bold">한 줄 평</h1>
         </div>
       </header>
       <BookCard book={book} onEdit={onEdit} />
       <section>
         <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
-          <h2 className="text-[17px] font-bold">한줄평</h2>
+          <h2 className="text-[17px] font-bold">한 줄 평</h2>
           {average !== null ? <StarRating value={average} readOnly size="sm" /> : null}
         </div>
         <form onSubmit={onSubmit} className="border-b border-border px-4 py-3">
@@ -82,7 +82,7 @@ export function BookDetail({
           </div>
         </form>
         {reviews.length === 0 ? (
-          <p className="px-4 py-8 text-[15px] text-muted-foreground">아직 한줄평이 없어용.</p>
+          <p className="px-4 py-8 text-[15px] text-muted-foreground">아직 한 줄 평이 없어용.</p>
         ) : (
           <ul>
             {reviews.map((review) => {

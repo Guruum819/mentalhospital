@@ -30,7 +30,7 @@ export function SettingsPage({
       <div className="grid">
         <SettingsRow label="계정 전환" detail="이름이랑 생일로 다른 프로필에 들어가용" onClick={onSwitch} />
         <SettingsRow label="로그아웃" detail="이 폰에서 이 계정만 빠져용" onClick={onLogout} />
-        <SettingsRow label="계정 삭제" detail="체크랑 한줄평이 사라지고 색이 비어용" danger onClick={onDelete} />
+        <SettingsRow label="계정 삭제" detail="체크랑 한 줄 평이 사라지고 색이 비어용" danger onClick={onDelete} />
         <SettingsRow label="그룹 암호" onClick={onPasscode} />
         <SettingsRow label="사용 안내" onClick={onGuide} />
         <SettingsRow label="책 비우기" detail="프로필은 두고 책만 지워용" onClick={onClearBooks} />

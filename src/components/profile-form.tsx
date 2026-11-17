@@ -107,7 +107,7 @@ export function ProfileForm({
       </div>
       {full ? (
         <p className="rounded-2xl bg-secondary px-3 py-3 text-sm">
-          모임은 10명까지예용. 프로필을 지우면 빈자리와 그 색을 다시 쓸 수 있어용.
+          모임은 10명까지예용. 프로필을 지우면 빈 자리와 그 색을 다시 쓸 수 있어용.
         </p>
       ) : null}
       <div className="grid gap-2">

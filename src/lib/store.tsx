@@ -201,7 +201,7 @@ export function ShelfProvider({ children }: { children: ReactNode }) {
         }
         const shelf = shownNow()
         if (shelf.friends.length >= PALETTE.length) {
-          toast.error('모임은 10명까지예용. 프로필을 지우면 빈자리와 그 색을 다시 쓸 수 있어용.')
+          toast.error('모임은 10명까지예용. 프로필을 지우면 빈 자리와 그 색을 다시 쓸 수 있어용.')
           return null
         }
         if (sameIdentity(shelf.friends, clean, born)) {
@@ -264,7 +264,7 @@ export function ShelfProvider({ children }: { children: ReactNode }) {
         const clean = cleanReview(text)
         const stars = snapRating(rating)
         if (!clean) {
-          toast.error('한줄평을 입력해 주세용.')
+          toast.error('한 줄 평을 입력해 주세용.')
           return false
         }
         if (stars === null) {
