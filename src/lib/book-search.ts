@@ -209,6 +209,19 @@ export function combineBookHits(
   )
 }
 
+export function kakaoCoverUrl(thumbnail: unknown): string | null {
+  if (typeof thumbnail === 'string') {
+    try {
+      const parsed = new URL(thumbnail.trim().replace(/^http:\/\//i, 'https://'))
+      const original = httpsUrl(parsed.searchParams.get('fname'))
+      if (original) return original
+    } catch {
+      // keep the thumbnail itself
+    }
+  }
+  return httpsUrl(thumbnail)
+}
+
 export function hitsFromKakao(payload: unknown): BookHit[] {
   if (!isRecord(payload) || !Array.isArray(payload.documents)) return []
   const hits: BookHit[] = []
@@ -220,7 +233,7 @@ export function hitsFromKakao(payload: unknown): BookHit[] {
       id: `kakao-${index}-${title}`,
       title,
       author: namesOf(item.authors),
-      coverUrl: httpsUrl(item.thumbnail),
+      coverUrl: kakaoCoverUrl(item.thumbnail),
       source: 'kakao',
     })
   })
@@ -366,14 +379,22 @@ export async function searchBooks(query: string, signal: AbortSignal): Promise<S
   if (q.length < 2) return { hits: [], warning: null }
 
   const kakaoKey = readKakaoKey()
-  const [wiki, kakao, openlibrary, google] = await Promise.all([
+  if (kakaoKey) {
+    try {
+      const kakao = orderHits(withQueryTitles(await searchKakao(q, signal, kakaoKey), q), q)
+      if (kakao.length > 0) return { hits: kakao, warning: null }
+    } catch (error) {
+      if (signal.aborted) throw error
+    }
+  }
+
+  const [wiki, openlibrary, google] = await Promise.all([
     hasHangul(q) ? safeHits(() => searchWiki(q, signal), signal) : Promise.resolve([]),
-    kakaoKey ? safeHits(() => searchKakao(q, signal, kakaoKey), signal) : Promise.resolve([]),
     safeHits(() => searchOpenLibrary(q, signal), signal),
     searchGoogle(q, signal),
   ])
 
-  const hits = combineBookHits({ wiki, kakao, google: google.hits, openlibrary }, q)
+  const hits = combineBookHits({ wiki, google: google.hits, openlibrary }, q)
   const warning = google.quota && !hits.some((hit) => hasHangul(hit.title)) ? QUOTA_WARNING : null
   return { hits, warning }
 }

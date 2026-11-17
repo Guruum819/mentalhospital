@@ -7,6 +7,7 @@ import {
   hitsFromKakao,
   hitsFromWiki,
   httpsUrl,
+  kakaoCoverUrl,
   stripHtml,
   titleForHangulQuery,
   type BookHit,
@@ -57,6 +58,10 @@ test('reviews stay within 200 characters and search keeps cover', () => {
     documents: [{ title: '<b>작별하지 않는다</b>', authors: ['한강'], thumbnail: 'http://example.com/a.jpg' }],
   })
   assert.equal(kakao[0]?.coverUrl, 'https://example.com/a.jpg')
+  assert.equal(
+    kakaoCoverUrl('https://search1.kakaocdn.net/thumb/R120x174.q85/?fname=http%3A%2F%2Ft1.daumcdn.net%2Flbook%2Fimage%2F5824679%3Ftimestamp%3D20251223144054'),
+    'https://t1.daumcdn.net/lbook/image/5824679?timestamp=20251223144054',
+  )
   const google = hitsFromGoogle({
     items: [{ id: 'g1', volumeInfo: { title: '데미안', authors: ['헤르만 헤세'], imageLinks: { thumbnail: 'https://books.google.com/a&zoom=1' } } }],
   })

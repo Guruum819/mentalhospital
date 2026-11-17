@@ -44,8 +44,8 @@ export function readFirebaseConfig(): FirebasePublicConfig | null {
   return config
 }
 
-/** Optional Kakao REST API key. Env wins; leave this empty when there is no key. */
-export const PUBLIC_KAKAO_REST_API_KEY = ''
+/** Public Kakao REST key. Env wins. It is visible in the page, like the Firebase web config. */
+export const PUBLIC_KAKAO_REST_API_KEY = '5b6ec20ebe78afe95c933814ad0992b4'
 
 export function readKakaoKey(): string {
   return envValue(import.meta.env.VITE_KAKAO_REST_API_KEY) || PUBLIC_KAKAO_REST_API_KEY
