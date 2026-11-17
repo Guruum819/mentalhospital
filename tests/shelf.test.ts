@@ -12,7 +12,7 @@ import {
   titleForHangulQuery,
   type BookHit,
 } from '../src/lib/book-search.ts'
-import { cleanBirthday, cleanCover, cleanReview, dropMemberNotifications, findProfile, fromFirebase, fromPersisted, isSafeId, likeAlertLine, likeNotice, likeNoticeId, markedFinished, newId, nudgeAlertLine, nudgeLine, nudgeNotice, readNotifications, replyAlertLine, replyNotice, sameIdentity, sortedBooks, sortedComments, toggledRead, toPersisted, withNotification, withoutNotification } from '../src/lib/model.ts'
+import { cleanBirthday, cleanCover, cleanReview, dropMemberNotifications, findProfile, fromFirebase, fromPersisted, isSafeId, likeAlertLine, likeNotice, likeNoticeId, markedFinished, newId, nextNudgeSends, nudgeAlertLine, nudgeAllowanceLine, nudgeLine, nudgeNotice, nudgesRemaining, readNotifications, replyAlertLine, replyNotice, sameIdentity, seoulDay, sortedBooks, sortedComments, toggledRead, toPersisted, withNotification, withoutNotification } from '../src/lib/model.ts'
 import { formatPatchDate } from '../src/lib/patch-notes.ts'
 import { PALETTE } from '../src/lib/palette.ts'
 import { starterShelf } from '../src/lib/seed.ts'
@@ -241,4 +241,33 @@ test('notifications stay under the member, skip my own actions, and unlike remov
   assert.equal(replyAlertLine('민수', '가'.repeat(50)).endsWith('…'), true)
   assert.equal(replyAlertLine('민수', '가'.repeat(50)).includes('가'.repeat(41)), false)
   assert.equal(nudgeAlertLine('민수', '작별하지 않는다'), '민수님이 『작별하지 않는다』 빨리 읽으래용!')
+})
+
+test('each member gets four nudges per Seoul day', () => {
+  const late = Date.parse('2026-11-16T14:59:59.000Z')
+  const midnight = Date.parse('2026-11-16T15:00:00.000Z')
+  assert.equal(seoulDay(late), '2026-11-16')
+  assert.equal(seoulDay(midnight), '2026-11-17')
+  const used = [late, late + 1, late + 2, late + 3]
+  assert.equal(nudgesRemaining(used, late), 0)
+  assert.equal(nextNudgeSends(used, late + 4), null)
+  assert.equal(nudgesRemaining(used, midnight), 4)
+  assert.deepEqual(nextNudgeSends(used, midnight), [midnight])
+  assert.equal(nudgesRemaining([late, midnight], midnight), 3)
+  assert.equal(nudgeAllowanceLine(2), '오늘 2번 남았어용')
+  assert.equal(nudgeAllowanceLine(0), '오늘 독촉은 다 썼어용')
+  const me = 'friend-minsu'
+  const shelf = fromFirebase({
+    friends: {
+      [me]: {
+        name: '민수',
+        order: 1,
+        color: 'rose',
+        birthday: '1992-02-02',
+        nudgeSends: { [late]: late, old: true },
+      },
+    },
+  })
+  assert.equal(shelf.friends[0]?.name, '민수')
+  assert.deepEqual(shelf.nudgeSends[me], [late])
 })

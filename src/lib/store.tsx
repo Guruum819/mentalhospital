@@ -16,6 +16,7 @@ import {
   colorTaken,
   newId,
   nextOrder,
+  nudgesRemaining,
   sameIdentity,
   snapRating,
   markedFinished,
@@ -566,6 +567,10 @@ export function ShelfProvider({ children }: { children: ReactNode }) {
         }
         if ((shelf.nudges[bookId] ?? []).includes(me)) {
           toast('이미 독촉했어용')
+          return
+        }
+        if (nudgesRemaining(shelf.nudgeSends[me] ?? [], Date.now()) === 0) {
+          toast('오늘 독촉은 다 썼어용')
           return
         }
         const ok = await guard(() => repo.setNudge(bookId, me, Date.now()))

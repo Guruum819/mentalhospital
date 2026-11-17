@@ -20,6 +20,7 @@ export function emptyShelf(): ShelfData {
     nudges: {},
     queues: {},
     notifications: {},
+    nudgeSends: {},
     initialized: false,
   }
 }
@@ -398,6 +399,47 @@ function parseNotificationMap(raw: unknown): Record<string, Notice[]> {
   return map
 }
 
+function parseStampList(raw: unknown): number[] {
+  if (Array.isArray(raw)) {
+    return raw
+      .filter((item): item is number => typeof item === 'number' && Number.isFinite(item) && item > 0)
+      .sort((a, b) => a - b)
+  }
+  if (!isRecord(raw)) return []
+  const stamps: number[] = []
+  for (const [key, value] of Object.entries(raw)) {
+    if (typeof value === 'number' && Number.isFinite(value) && value > 0) stamps.push(value)
+    else if (value === true) {
+      const at = Number(key)
+      if (Number.isFinite(at) && at > 0) stamps.push(at)
+    }
+  }
+  return [...new Set(stamps)].sort((a, b) => a - b)
+}
+
+function parseNudgeSendMap(raw: unknown): Record<string, number[]> {
+  if (!isRecord(raw)) return {}
+  const map: Record<string, number[]> = {}
+  for (const [friendId, value] of Object.entries(raw)) {
+    if (!isSafeId(friendId)) continue
+    const list = parseStampList(value)
+    if (list.length > 0) map[friendId] = list
+  }
+  return map
+}
+
+/** Realtime Database keeps each member's sends on that member: friends/{id}/nudgeSends. */
+function parseNudgeSendsUnderFriends(raw: unknown): Record<string, number[]> {
+  if (!isRecord(raw)) return {}
+  const map: Record<string, number[]> = {}
+  for (const [friendId, value] of Object.entries(raw)) {
+    if (!isSafeId(friendId) || !isRecord(value)) continue
+    const list = parseStampList(value.nudgeSends)
+    if (list.length > 0) map[friendId] = list
+  }
+  return map
+}
+
 /** Realtime Database keeps each inbox on the member: friends/{id}/notifications. */
 function parseNotificationsUnderFriends(raw: unknown): Record<string, Notice[]> {
   if (!isRecord(raw)) return {}
@@ -446,6 +488,7 @@ export function fromFirebase(raw: unknown): ShelfData {
     nudges: parseIdQueue(settings.nudges),
     queues: parseIdQueue(settings.queues),
     notifications: parseNotificationsUnderFriends(friendsRaw),
+    nudgeSends: parseNudgeSendsUnderFriends(friendsRaw),
     initialized: settings.initialized === true,
   }
 }
@@ -484,6 +527,7 @@ export function fromPersisted(raw: unknown): ShelfData | null {
     nudges: parseIdQueue(raw.nudges),
     queues: parseIdQueue(raw.queues),
     notifications: parseNotificationMap(raw.notifications),
+    nudgeSends: parseNudgeSendMap(raw.nudgeSends),
     initialized: raw.initialized === true,
   }
 }
@@ -782,6 +826,36 @@ export function replyAlertLine(name: string, preview: string): string {
 
 export function nudgeAlertLine(name: string, title: string): string {
   return `${name}님이 『${title}』 빨리 읽으래용!`
+}
+
+export const DAILY_NUDGE_LIMIT = 4
+const SEOUL_OFFSET_MS = 9 * 60 * 60 * 1000
+
+/** YYYY-MM-DD in Asia/Seoul. Korea has no daylight saving. */
+export function seoulDay(at: number): string {
+  const shifted = new Date(at + SEOUL_OFFSET_MS)
+  const month = String(shifted.getUTCMonth() + 1).padStart(2, '0')
+  const day = String(shifted.getUTCDate()).padStart(2, '0')
+  return `${shifted.getUTCFullYear()}-${month}-${day}`
+}
+
+export function nudgesRemaining(stamps: readonly number[], now: number): number {
+  const day = seoulDay(now)
+  const used = stamps.filter((stamp) => seoulDay(stamp) === day).length
+  return Math.max(0, DAILY_NUDGE_LIMIT - used)
+}
+
+/** Today's sends plus this one, or null when the daily cap is already used. Older days are dropped. */
+export function nextNudgeSends(stamps: readonly number[], at: number): number[] | null {
+  const day = seoulDay(at)
+  const today = stamps.filter((stamp) => seoulDay(stamp) === day)
+  if (today.length >= DAILY_NUDGE_LIMIT) return null
+  return [...today, at].sort((a, b) => a - b)
+}
+
+export function nudgeAllowanceLine(remaining: number): string {
+  if (remaining <= 0) return '오늘 독촉은 다 썼어용'
+  return `오늘 ${remaining}번 남았어용`
 }
 
 export function unreadNotificationCount(notifications: ShelfData['notifications'], friendId: string): number {

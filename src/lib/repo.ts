@@ -14,6 +14,7 @@ import {
   fromPersisted,
   isSafeId,
   likeNotice,
+  nextNudgeSends,
   nudgeNotice,
   readNotifications,
   replyNotice,
@@ -298,7 +299,16 @@ function createFirebaseRepo(): ShelfRepository {
       await write(values)
     },
     async setNudge(bookId, friendId, at) {
+      if ((current.nudges[bookId] ?? []).includes(friendId)) return
+      const previous = current.nudgeSends[friendId] ?? []
+      const next = nextNudgeSends(previous, at)
+      if (!next) throw new Error('오늘 독촉은 다 썼어용')
       const values: Record<string, unknown> = { [`settings/nudges/${bookId}/${friendId}`]: at }
+      const kept = new Set(next)
+      for (const old of previous) {
+        if (!kept.has(old)) values[`friends/${friendId}/nudgeSends/${old}`] = null
+      }
+      values[`friends/${friendId}/nudgeSends/${at}`] = at
       const built = nudgeNotice(current.reading[bookId], bookId, friendId, at)
       if (built) values[`friends/${built.recipientId}/notifications/${built.notice.id}`] = notificationValue(built.notice)
       await write(values)
@@ -346,6 +356,13 @@ function createFirebaseRepo(): ShelfRepository {
       })
     },
   }
+}
+
+function dropSends(sends: ShelfData['nudgeSends'], friendId: string): ShelfData['nudgeSends'] {
+  if (!sends[friendId]) return sends
+  const next = { ...sends }
+  delete next[friendId]
+  return next
 }
 
 function withoutId(queue: ShelfData['queues'], bookId: string, friendId: string): ShelfData['queues'] {
@@ -441,6 +458,7 @@ function createDemoRepo(): ShelfRepository {
           nudges,
           queues,
           notifications: dropMemberNotifications(current, friendId).notifications,
+          nudgeSends: dropSends(current.nudgeSends, friendId),
         },
         true,
       )
@@ -547,7 +565,13 @@ function createDemoRepo(): ShelfRepository {
     async setNudge(bookId, friendId, at) {
       const ids = current.nudges[bookId] ?? []
       if (ids.includes(friendId)) return
-      let next: ShelfData = { ...current, nudges: { ...current.nudges, [bookId]: [...ids, friendId] } }
+      const sends = nextNudgeSends(current.nudgeSends[friendId] ?? [], at)
+      if (!sends) throw new Error('오늘 독촉은 다 썼어용')
+      let next: ShelfData = {
+        ...current,
+        nudges: { ...current.nudges, [bookId]: [...ids, friendId] },
+        nudgeSends: { ...current.nudgeSends, [friendId]: sends },
+      }
       const built = nudgeNotice(current.reading[bookId], bookId, friendId, at)
       if (built) next = withNotification(next, built.recipientId, built.notice)
       persist(next, true)

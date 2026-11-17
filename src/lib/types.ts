@@ -87,6 +87,8 @@ export type ShelfData = {
   queues: IdQueue
   /** recipient friend id → newest first. */
   notifications: Record<string, Notice[]>
+  /** friend id → timestamps of 독촉 they sent. The daily cap counts Seoul midnights. */
+  nudgeSends: Record<string, number[]>
   initialized: boolean
 }
 

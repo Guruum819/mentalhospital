@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Check, ImageOff, MoreHorizontal } from 'lucide-react'
 import {
   Dialog,
@@ -7,7 +7,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { averageRating, countReads, visibleFriends } from '@/lib/model'
+import { averageRating, countReads, nudgeAllowanceLine, nudgesRemaining, visibleFriends } from '@/lib/model'
 import { inkFor, paletteColor } from '@/lib/palette'
 import { useShelf } from '@/lib/store'
 import { toast } from 'sonner'
@@ -318,6 +318,15 @@ function ReadingChoice({
   )
 }
 
+function useNow() {
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    const id = window.setInterval(() => setNow(Date.now()), 30_000)
+    return () => window.clearInterval(id)
+  }, [])
+  return now
+}
+
 function ReadingExtras({
   bookId,
   meId,
@@ -337,6 +346,9 @@ function ReadingExtras({
   const nudged = nudges.includes(meId)
   const queued = queue.some((friend) => friend.id === meId)
   const mine = readerId === meId
+  const now = useNow()
+  const remaining = nudgesRemaining(shelf.data.nudgeSends[meId] ?? [], now)
+  const outOfNudges = remaining === 0
 
   return (
     <div className="mt-2 space-y-2">
@@ -351,11 +363,16 @@ function ReadingExtras({
           <button
             type="button"
             className="h-11 rounded-full bg-x px-3 text-[15px] font-bold text-white disabled:opacity-50"
-            disabled={nudged}
+            disabled={nudged || outOfNudges}
             onClick={() => void shelf.nudge(bookId)}
           >
             {nudged ? '독촉했어용' : '독촉하기'}
           </button>
+        )}
+        {mine ? null : (
+          <span data-testid="nudge-remaining" className="inline-flex h-11 items-center text-[13px] font-medium text-muted-foreground">
+            {nudgeAllowanceLine(remaining)}
+          </span>
         )}
         {mine ? null : (
           <button

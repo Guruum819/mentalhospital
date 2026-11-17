@@ -14,6 +14,7 @@ export function starterShelf(): ShelfData {
     nudges: {},
     queues: {},
     notifications: {},
+    nudgeSends: {},
     initialized: true,
   }
 }
