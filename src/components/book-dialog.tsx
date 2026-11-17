@@ -89,6 +89,7 @@ export function BookDialog({
   }, [open, book, query])
 
   const buyerId = book?.buyerId || readWho() || ''
+  const keyboard = useKeyboardBox()
 
   async function createFrom(hit: { id?: string; title: string; author: string; coverUrl: string | null }) {
     if (pendingId) return
@@ -105,7 +106,10 @@ export function BookDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex max-h-[min(92dvh,100%)] w-full max-w-full flex-col gap-0 overflow-x-hidden p-0">
+      <DialogContent
+        className="flex max-h-[min(92dvh,100%)] w-full max-w-full flex-col gap-0 overflow-hidden p-0"
+        style={{ bottom: keyboard.bottom, maxHeight: keyboard.maxHeight }}
+      >
         <DialogHeader className="shrink-0 px-4 pt-3 pr-14">
           <DialogTitle>{book ? '책 수정' : '책 추가'}</DialogTitle>
           <DialogDescription>
@@ -117,6 +121,7 @@ export function BookDialog({
         <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-3">
           {book ? (
             <form
+              id="book-edit"
               className="space-y-3"
               onSubmit={(event) => {
                 event.preventDefault()
@@ -139,7 +144,10 @@ export function BookDialog({
                 covers={covers}
                 busy={coverBusy}
                 fileRef={fileRef}
-                onCover={setCoverUrl}
+                onCover={(url) => {
+                  setCoverUrl(url)
+                  if (url) setCovers([])
+                }}
                 onSearch={() => {
                   const q = title.trim()
                   if (q.length < 2) return
@@ -169,7 +177,6 @@ export function BookDialog({
                 }}
               />
               {warning ? <p className="text-sm text-destructive">{warning}</p> : null}
-              <Button type="submit" className="h-12 w-full text-base">저장</Button>
             </form>
           ) : (
             <>
@@ -252,7 +259,12 @@ export function BookDialog({
             </>
           )}
         </div>
-        <DialogFooter className="shrink-0 px-4 pt-2 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+        <DialogFooter className="sticky bottom-0 z-10 shrink-0 border-t border-border bg-popover px-4 pt-2 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+          {book ? (
+            <Button type="submit" form="book-edit" data-testid="save-book" className="h-12 w-full text-base">
+              저장하기
+            </Button>
+          ) : null}
           <Button type="button" variant="outline" className="h-12 text-base" onClick={() => onOpenChange(false)}>
             닫기
           </Button>
@@ -260,6 +272,28 @@ export function BookDialog({
       </DialogContent>
     </Dialog>
   )
+}
+
+/** Lift the sheet above the on-screen keyboard and keep it inside the visible viewport. */
+function useKeyboardBox() {
+  const [box, setBox] = useState({ bottom: 0, maxHeight: 'min(92dvh, 100%)' })
+  useEffect(() => {
+    const viewport = window.visualViewport
+    if (!viewport) return
+    const update = () => {
+      const bottom = Math.max(0, Math.round(window.innerHeight - viewport.height - viewport.offsetTop))
+      const maxHeight = Math.max(240, Math.round(viewport.height * 0.92))
+      setBox({ bottom, maxHeight: `${maxHeight}px` })
+    }
+    update()
+    viewport.addEventListener('resize', update)
+    viewport.addEventListener('scroll', update)
+    return () => {
+      viewport.removeEventListener('resize', update)
+      viewport.removeEventListener('scroll', update)
+    }
+  }, [])
+  return box
 }
 
 function CoverEditor({
@@ -315,11 +349,12 @@ function CoverEditor({
         </div>
       </div>
       {covers.length > 0 ? (
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-3 gap-2" data-testid="cover-grid">
           {covers.map((hit) => (
             <button
               key={hit.coverUrl}
               type="button"
+              data-testid="cover-choice"
               className={`overflow-hidden rounded-md ring-offset-2 ${coverUrl === hit.coverUrl ? 'ring-2 ring-foreground' : ''}`}
               onClick={() => onCover(hit.coverUrl)}
             >
