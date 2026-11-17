@@ -139,18 +139,11 @@ export function BookCard({
           </div>
         </div>
 
-        <div className="min-w-0 flex-1">
+        <div className="flex h-[150px] min-w-0 flex-1 flex-col">
           <div className="flex items-start gap-2">
-            <div className="min-w-0 flex-1">
-              {transfer ? (
-                <p data-testid="pending-pass" className="mb-1 line-clamp-2 text-[12px] font-medium leading-snug text-muted-foreground">
-                  {pendingPassLine(pendingName ?? '친구')}
-                </p>
-              ) : null}
-              <h2 data-testid="book-title" className="line-clamp-2 break-keep text-[17px] leading-snug font-bold tracking-tight">
-                {book.title}
-              </h2>
-            </div>
+            <h2 data-testid="book-title" className="line-clamp-2 h-12 min-w-0 flex-1 break-keep text-[17px] leading-6 font-bold tracking-tight">
+              {displayTitle(book.title)}
+            </h2>
             {(me && !mineRead) || book.buyerId === meId ? (
               <div className="flex h-8 shrink-0 items-center justify-end gap-1">
                 {me && !mineRead ? <QueuePill bookId={book.id} meId={meId} /> : null}
@@ -160,14 +153,12 @@ export function BookCard({
               </div>
             ) : null}
           </div>
-          <p className="mt-1 truncate text-[14px] text-muted-foreground">{book.author || '저자 미상'}</p>
-          {average !== null ? (
-            <div className="mt-1.5">
-              <StarRating value={average} readOnly size="sm" />
-            </div>
-          ) : null}
-          <div className="mt-2">
-            <p data-testid="book-holder" className="text-[13px] text-muted-foreground">
+          <p className="mt-1 h-5 truncate text-[14px] leading-5 text-muted-foreground">{book.author || '저자 미상'}</p>
+          <div className="mt-1 flex h-5 items-center">
+            {average !== null ? <StarRating value={average} readOnly size="sm" /> : null}
+          </div>
+          <div className="mt-auto flex h-5 items-center gap-1.5">
+            <p data-testid="book-holder" className="min-w-0 truncate text-[13px] leading-5 text-muted-foreground">
               {holder ? (
                 <>
                   지금{' '}
@@ -180,18 +171,17 @@ export function BookCard({
                 '지금 갖고 있는 사람이 없어용'
               )}
             </p>
-            <CardActions
-              holding={holding}
-              transfer={transfer}
-              meId={meId}
-              admin={shelf.admin}
-              onPass={() => setPassOpen(true)}
-              onCancel={() => void shelf.cancelOffer(book.id)}
-              onAccept={() => void shelf.acceptOffer(book.id)}
-              onDecline={() => void shelf.declineOffer(book.id)}
-            />
+            {transfer ? (
+              <span
+                data-testid="pending-pass"
+                title={pendingPassLine(pendingName ?? '친구')}
+                className="shrink-0 rounded-full bg-x/15 px-1.5 text-[11px] leading-5 font-bold text-x"
+              >
+                넘기는 중
+              </span>
+            ) : null}
           </div>
-          <div className="mt-2 flex items-center gap-2 text-[15px]">
+          <div className="mt-1 flex h-6 items-center gap-2 text-[15px]">
             {buyer ? (
               <button
                 type="button"
@@ -210,9 +200,21 @@ export function BookCard({
       </div>
 
       <div className="mt-4">
-        <p className="text-[13px] text-muted-foreground">
-          읽음 {readCount}/{friends.length}
-        </p>
+        <div className="flex h-8 items-center justify-between gap-2">
+          <p className="shrink-0 text-[13px] text-muted-foreground">
+            읽음 {readCount}/{friends.length}
+          </p>
+          <CardActions
+            holding={holding}
+            transfer={transfer}
+            meId={meId}
+            admin={shelf.admin}
+            onPass={() => setPassOpen(true)}
+            onCancel={() => void shelf.cancelOffer(book.id)}
+            onAccept={() => void shelf.acceptOffer(book.id)}
+            onDecline={() => void shelf.declineOffer(book.id)}
+          />
+        </div>
         <div
           className="mt-1.5 grid gap-1.5"
           style={{ gridTemplateColumns: `repeat(${chipColumns(friends.length)}, minmax(0, 1fr))` }}
@@ -365,6 +367,11 @@ export function BookCard({
 }
 
 const actionButton = 'h-8 shrink-0 rounded-full px-2.5 text-[13px] font-bold'
+
+/** Keep an opening parenthesis with the text that follows it. */
+function displayTitle(title: string): string {
+  return title.replaceAll('(', '(\u2060').replaceAll(')', '\u2060)').replaceAll('（', '（\u2060').replaceAll('）', '\u2060）')
+}
 
 function chipColumns(count: number): number {
   return Math.min(5, Math.max(count, 1))
