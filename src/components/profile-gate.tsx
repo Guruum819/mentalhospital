@@ -34,7 +34,7 @@ export function ProfileGate({
     event.preventDefault()
     const found = findProfile(shelf.data.friends, name, birthday)
     if (!found) {
-      setError('이름과 생일이 맞는 프로필이 없어요.')
+      setError('이름과 생일이 맞는 프로필이 없어용.')
       return
     }
     onLogin(found.id)
@@ -47,7 +47,7 @@ export function ProfileGate({
         <form onSubmit={login} className="mt-6 grid gap-4">
           <div>
             <h2 className="text-xl font-bold">로그인</h2>
-            <p className="mt-1 text-sm text-muted-foreground">이 폰에서 쓸 이름과 생일을 입력해요.</p>
+            <p className="mt-1 text-sm text-muted-foreground">이 폰에서 쓸 이름이랑 생일을 넣어줘용.</p>
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="login-name">이름</Label>
@@ -60,7 +60,7 @@ export function ProfileGate({
           {error ? <p className="text-sm text-destructive">{error}</p> : null}
           <Button type="submit" className="h-12 text-base">들어가기</Button>
           {full ? (
-            <p className="text-sm text-muted-foreground">모임은 10명까지예요. 새 프로필은 누군가를 지운 뒤에 만들 수 있어요.</p>
+            <p className="text-sm text-muted-foreground">모임은 10명까지지용. 새 프로필은 누군가를 지운 뒤에 만들 수 있어용.</p>
           ) : (
             <button type="button" className="h-11 text-sm text-muted-foreground underline" onClick={() => onMode('signup')}>
               처음이면 프로필 만들기

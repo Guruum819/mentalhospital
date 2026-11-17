@@ -38,7 +38,7 @@ export function ProfilePage({ me, onBack, onEdit }: { me: Friend; onBack: () => 
       </div>
       <ul className="mt-4 border-t border-border">
         {posts.length === 0 ? (
-          <li className="px-4 py-8 text-[15px] text-muted-foreground">아직 남긴 한줄평이 없어요.</li>
+          <li className="px-4 py-8 text-[15px] text-muted-foreground">아직 한줄평이 없어용.</li>
         ) : (
           posts.map((review) => {
             const book = shelf.data.books.find((item) => item.id === review.bookId)
@@ -48,7 +48,7 @@ export function ProfilePage({ me, onBack, onEdit }: { me: Friend; onBack: () => 
                 <div className="min-w-0">
                   <p className="text-[15px] font-bold">{me.name}</p>
                   <StarRating value={review.rating} readOnly size="sm" />
-                  <p className="text-[15px] text-x">{book?.title ?? '알 수 없는 책'}</p>
+                  <p className="text-[15px] text-x">{book?.title ?? '모르는 책용'}</p>
                   <p className="mt-1 text-[15px] leading-snug whitespace-pre-wrap">{review.text}</p>
                 </div>
               </li>

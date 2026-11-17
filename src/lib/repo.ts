@@ -33,7 +33,7 @@ export interface ShelfRepository {
 
 function database(): Database {
   const options = readFirebaseConfig()
-  if (!options) throw new Error('Firebase 설정이 없어요.')
+  if (!options) throw new Error('Firebase 설정이 없어용.')
   const app = getApps().length ? getApp() : initializeApp(options)
   const db = getDatabase(app)
   const emulator = emulatorAddress()
@@ -67,7 +67,7 @@ function createFirebaseRepo(): ShelfRepository {
             if (!seeding) {
               seeding = true
               write(starterFirebaseUpdate())
-                .catch((error: unknown) => onError(error instanceof Error ? error.message : '시작 데이터를 쓰지 못했어요.'))
+                .catch((error: unknown) => onError(error instanceof Error ? error.message : '시작 데이터를 못 썼당.'))
                 .finally(() => {
                   seeding = false
                 })

@@ -15,7 +15,7 @@ export type SearchOutcome = {
 
 const MAX_HITS = 8
 const HANGUL = /[가-힣]/
-const QUOTA_WARNING = '표지 검색이 잠시 제한되어 있어요. 제목과 저자는 직접 입력할 수 있어요.'
+const QUOTA_WARNING = '검색 한도에 걸렸어용 ㅠ 직접 입력해줘용'
 
 export function stripHtml(value: string): string {
   return value

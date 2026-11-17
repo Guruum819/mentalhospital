@@ -6,7 +6,7 @@ export function toKoreanError(error: unknown): string {
       : ''
   const text = `${code} ${message}`.toLowerCase()
   if (text.includes('permission_denied') || text.includes('permission denied')) {
-    return '데이터베이스가 막혀 있어요. README의 보안 규칙을 붙여넣고 게시했는지 확인해 주세요.'
+    return '데이터베이스가 막혀 있어용. README 규칙을 붙여넣고 게시했는지 봐줘용.'
   }
   if (
     text.includes('network') ||
@@ -14,8 +14,8 @@ export function toKoreanError(error: unknown): string {
     text.includes('failed to get') ||
     text.includes('disconnected')
   ) {
-    return '네트워크에 연결하지 못했어요. 잠시 후 다시 시도해 주세요.'
+    return '네트워크에 연결 못 했당. 잠깐 뒤에 다시 해줘용.'
   }
   if (/[가-힣]/.test(message)) return message
-  return '저장하지 못했어요. 잠시 후 다시 시도해 주세요.'
+  return '저장을 못 했당. 잠깐 뒤에 다시 해줘용.'
 }

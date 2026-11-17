@@ -69,7 +69,7 @@ export function BookDialog({
         .catch(() => {
           if (controller.signal.aborted) return
           setHits([])
-          setWarning('검색이 되지 않았어요. 직접 입력해 주세요.')
+          setWarning('검색이 안 됐어용 ㅠ 직접 입력해줘용')
           setSearching(false)
           setManual(true)
         })
@@ -102,8 +102,8 @@ export function BookDialog({
           <DialogTitle>{book ? '책 수정' : '책 추가'}</DialogTitle>
           <DialogDescription>
             {book
-              ? '제목과 저자를 고칩니다. 구매자는 이 책을 올린 사람이에요.'
-              : '제목을 입력하면 표지와 함께 목록이 나와요. 고르면 내가 구매자로 올라갑니다.'}
+              ? '제목이랑 저자를 고쳐용. 구매자는 이 책 올린 사람이지용.'
+              : '제목을 입력하면 표지랑 같이 목록이 나와용. 고르면 내가 구매자가 돼용.'}
           </DialogDescription>
         </DialogHeader>
         <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-3">
@@ -143,12 +143,12 @@ export function BookDialog({
               </div>
               {searching ? (
                 <p className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Loader2 className="size-4 animate-spin" /> 찾는 중
+                  <Loader2 className="size-4 animate-spin" /> 찾는 중용
                 </p>
               ) : null}
               {warning ? <p className="text-sm text-muted-foreground">{warning}</p> : null}
               {query.trim().length >= 2 && !searching && hits.length === 0 ? (
-                <p className="text-sm text-muted-foreground">맞는 책이 없어요. 직접 입력해 주세요.</p>
+                <p className="text-sm text-muted-foreground">맞는 책이 없어용. 직접 입력해줘용.</p>
               ) : null}
               <div className="space-y-1.5">
                 {hits.map((hit) => (
@@ -166,7 +166,7 @@ export function BookDialog({
                     )}
                     <span className="min-w-0">
                       <span className="block truncate font-medium">{hit.title}</span>
-                      <span className="block truncate text-sm text-muted-foreground">{hit.author || '저자 정보 없음'}</span>
+                      <span className="block truncate text-sm text-muted-foreground">{hit.author || '저자 모름용'}</span>
                     </span>
                   </button>
                 ))}
@@ -188,7 +188,7 @@ export function BookDialog({
                     <Input id="manual-author" value={author} onChange={(event) => setAuthor(event.target.value)} className={fieldClass} />
                   </div>
                   <Button type="submit" className="h-12 w-full text-base" disabled={pendingId !== null}>
-                    이 책 올리기
+                    올리기
                   </Button>
                 </form>
               ) : (
@@ -202,7 +202,7 @@ export function BookDialog({
                     setTitle((current) => (current.trim() ? current : query.trim()))
                   }}
                 >
-                  검색 없이 직접 입력
+                  직접 입력
                 </Button>
               )}
             </>

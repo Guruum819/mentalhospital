@@ -15,7 +15,7 @@ class AppErrorBoundary extends Component<{ children: ReactNode }, { failed: bool
       return (
         <main className="grid min-h-dvh place-items-center px-6 text-center">
           <div>
-            <p className="text-2xl font-bold">화면을 열지 못했어요</p>
+            <p className="text-2xl font-bold">화면을 못 열었당</p>
             <button type="button" className="mt-4 text-sm underline" onClick={() => window.location.reload()}>
               새로고침
             </button>
