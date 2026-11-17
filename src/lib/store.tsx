@@ -282,7 +282,12 @@ export function ShelfProvider({ children }: { children: ReactNode }) {
           return false
         }
         const shelf = shownNow()
-        if (!shelf.books.some((book) => book.id === bookId) || !shelf.friends.some((friend) => friend.id === friendId)) {
+        const reader = shelf.friends.find((friend) => friend.id === friendId)
+        if (friendId !== readWho() || !reader?.approved || !shelf.books.some((book) => book.id === bookId)) {
+          return false
+        }
+        if (!shelf.reads[bookId]?.[friendId]) {
+          toast.error('이 책을 읽고 나면 코멘트를 달 수 있어용.')
           return false
         }
         const review: Review = {
@@ -322,9 +327,10 @@ export function ShelfProvider({ children }: { children: ReactNode }) {
         return guard(() => repo.deleteReview(reviewId))
       },
       async toggleLike(reviewId) {
+        const shelf = shownNow()
         const me = readWho()
-        const review = shownNow().reviews.find((item) => item.id === reviewId)
-        if (!me || !review) return
+        const review = shelf.reviews.find((item) => item.id === reviewId)
+        if (!me || !review || !shelf.friends.some((friend) => friend.id === me && friend.approved)) return
         const like = !review.likes.includes(me)
         const key = cellKey(reviewId, me)
         pendingRef.current.likes.set(key, like)
@@ -345,9 +351,10 @@ export function ShelfProvider({ children }: { children: ReactNode }) {
           toast.error('답글을 입력해 주세용.')
           return false
         }
+        const shelf = shownNow()
         const me = readWho()
-        const parent = shownNow().reviews.find((item) => item.id === reviewId)
-        if (!me || !parent || parent.parentId) return false
+        const parent = shelf.reviews.find((item) => item.id === reviewId)
+        if (!me || !parent || parent.parentId || !shelf.friends.some((friend) => friend.id === me && friend.approved)) return false
         const reply: Review = {
           id: newId('review'),
           bookId: parent.bookId,
