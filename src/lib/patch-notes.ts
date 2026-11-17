@@ -19,9 +19,15 @@ export const PATCH_NOTES: PatchNote[] = [
       '화면 색을 차분한 회색으로 바꿨어용.',
       '관리자가 멤버를 강퇴할 수 있어용.',
       '읽음으로 체크한 뒤에 한 줄 평을 쓸 수 있어용.',
+      '패치노트랑 수정 요청을 설정에서 따로 열게 했어용.',
     ],
   },
 ]
+
+/** Newest day first. Add another `{ date, lines }` entry for a future day. */
+export function patchNotesNewestFirst(): PatchNote[] {
+  return [...PATCH_NOTES].sort((a, b) => b.date.localeCompare(a.date))
+}
 
 export function formatPatchDate(iso: string): string {
   const [year, month, day] = iso.split('-')

@@ -3,11 +3,12 @@ import { ChevronLeft } from 'lucide-react'
 import { toast } from 'sonner'
 import { readWho } from '@/lib/identity'
 import { MAX_REVIEW } from '@/lib/model'
-import { PATCH_NOTES, formatPatchDate } from '@/lib/patch-notes'
+import { formatPatchDate, patchNotesNewestFirst } from '@/lib/patch-notes'
 import { useShelf } from '@/lib/store'
 import type { Friend } from '@/lib/types'
 import { Avatar } from '@/components/avatar-editor'
 import { ConfirmDialog } from '@/components/confirm-dialog'
+import { EdgeBack } from '@/components/edge-back'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
@@ -30,9 +31,22 @@ export function SettingsPage({
 }) {
   const shelf = useShelf()
   const [adminOpen, setAdminOpen] = useState(false)
+  const [panel, setPanel] = useState<'root' | 'patches' | 'board' | string>('root')
 
   if (adminOpen) {
     return <AdminScreen onBack={() => setAdminOpen(false)} onClearBooks={onClearBooks} />
+  }
+
+  if (panel === 'patches') {
+    return <PatchList onBack={() => setPanel('root')} onOpen={(date) => setPanel(date)} />
+  }
+
+  if (panel !== 'root' && panel !== 'board') {
+    return <PatchDay date={panel} onBack={() => setPanel('patches')} />
+  }
+
+  if (panel === 'board') {
+    return <RequestBoard onBack={() => setPanel('root')} />
   }
 
   return (
@@ -50,25 +64,9 @@ export function SettingsPage({
         <SettingsRow label="로그아웃" detail="이 폰에서 이 계정만 빠져용" onClick={onLogout} />
         <SettingsRow label="계정 삭제" detail="읽은 기록이랑 읽는 중, 한 줄 평은 사라져용. 올린 책은 남아용." danger onClick={onDelete} />
         <SettingsRow label="사용 안내" onClick={onGuide} />
+        <SettingsRow label="패치노트" onClick={() => setPanel('patches')} />
+        <SettingsRow label="이거 수정해 주세요!" onClick={() => setPanel('board')} />
       </div>
-      <section className="border-t border-border px-4 py-4">
-        <h2 className="text-[17px] font-bold">패치노트</h2>
-        <div className="mt-3 space-y-4">
-          {PATCH_NOTES.map((note) => (
-            <div key={note.date}>
-              <h3 className="text-[15px] font-bold">{formatPatchDate(note.date)}</h3>
-              <ul className="mt-1 space-y-1">
-                {note.lines.map((line) => (
-                  <li key={line} className="text-[15px] leading-snug text-foreground">
-                    {line}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
-        </div>
-      </section>
-      <RequestBoard />
       <div className="px-4 py-6 text-center">
         <p className="text-xs text-muted-foreground">모임은 10명까지예용.</p>
         {shelf.admin ? <p className="mt-2 text-xs font-bold">관리자로 보는 중</p> : null}
@@ -103,7 +101,58 @@ function SettingsRow({
   )
 }
 
-function RequestBoard() {
+function ScreenHeader({ title, onBack }: { title: string; onBack: () => void }) {
+  return (
+    <header className="sticky top-0 z-20 border-b border-border bg-background/80 backdrop-blur-md pt-[env(safe-area-inset-top)]">
+      <div className="relative flex h-14 items-center">
+        <button type="button" className="grid size-11 place-items-center" onClick={onBack} aria-label="뒤로">
+          <ChevronLeft className="size-6" />
+        </button>
+        <h1 className="pointer-events-none absolute inset-x-14 truncate text-center text-[17px] font-bold">{title}</h1>
+      </div>
+    </header>
+  )
+}
+
+function PatchList({ onBack, onOpen }: { onBack: () => void; onOpen: (date: string) => void }) {
+  const notes = patchNotesNewestFirst()
+  return (
+    <EdgeBack onBack={onBack}>
+      <div className="min-h-dvh bg-background">
+        <ScreenHeader title="패치노트" onBack={onBack} />
+        <div className="grid">
+          {notes.map((note) => (
+            <SettingsRow key={note.date} label={formatPatchDate(note.date)} onClick={() => onOpen(note.date)} />
+          ))}
+        </div>
+      </div>
+    </EdgeBack>
+  )
+}
+
+function PatchDay({ date, onBack }: { date: string; onBack: () => void }) {
+  const note = patchNotesNewestFirst().find((item) => item.date === date)
+  return (
+    <EdgeBack onBack={onBack}>
+      <div className="min-h-dvh bg-background">
+        <ScreenHeader title={formatPatchDate(date)} onBack={onBack} />
+        {note ? (
+          <ul className="px-4 py-4 space-y-3">
+            {note.lines.map((line) => (
+              <li key={line} className="text-[15px] leading-snug">
+                {line}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="px-4 py-8 text-[15px] text-muted-foreground">이 날짜의 노트가 없어용.</p>
+        )}
+      </div>
+    </EdgeBack>
+  )
+}
+
+function RequestBoard({ onBack }: { onBack: () => void }) {
   const shelf = useShelf()
   const [text, setText] = useState('')
   const [anonymous, setAnonymous] = useState(false)
@@ -125,35 +174,40 @@ function RequestBoard() {
     }
   }
 
+  const me = shelf.data.friends.find((friend) => friend.id === meId) ?? null
+
   return (
-    <section className="border-t border-border">
-      <div className="px-4 py-4">
-        <h2 className="text-[17px] font-bold">이거 수정해 주세요!</h2>
-        <p className="mt-1 text-sm text-muted-foreground">고치고 싶은 점을 짧게 남겨 주세용. 답글은 관리자만 달아용.</p>
-      </div>
-      <form onSubmit={submit} className="border-b border-border px-4 pb-4">
-        <textarea
-          value={text}
-          onChange={(event) => setText(event.target.value)}
-          maxLength={MAX_REVIEW}
-          rows={3}
-          placeholder="이렇게 바꿔 주세용"
-          className="w-full resize-none bg-transparent text-[17px] outline-none placeholder:text-muted-foreground"
-        />
-        <div className="mt-2 flex items-center justify-between gap-3">
-          <label className="flex items-center gap-2 text-sm">
-            <Checkbox checked={anonymous} onCheckedChange={(value) => setAnonymous(value === true)} />
-            익명으로 쓰기
-          </label>
-          <span className="text-[13px] tabular-nums text-muted-foreground">
-            {chars}/{MAX_REVIEW}
-          </span>
-        </div>
-        <Button type="submit" className="mt-3 h-11 w-full bg-x text-x-ink hover:bg-x/90" disabled={pending || !text.trim() || chars > MAX_REVIEW}>
-          올리기
-        </Button>
-      </form>
-      <ul>
+    <EdgeBack onBack={onBack}>
+      <div className="min-h-dvh bg-background">
+        <ScreenHeader title="이거 수정해 주세요!" onBack={onBack} />
+        <form onSubmit={submit} className="flex gap-3 border-b border-border px-4 py-3">
+          <Avatar name={me?.name ?? '?'} photo={me?.photo ?? null} size={40} />
+          <div className="min-w-0 flex-1">
+            <textarea
+              value={text}
+              onChange={(event) => setText(event.target.value)}
+              maxLength={MAX_REVIEW}
+              rows={3}
+              placeholder="이렇게 바꿔 주세용"
+              className="w-full resize-none bg-transparent text-[17px] outline-none placeholder:text-muted-foreground"
+            />
+            <div className="mt-2 flex items-center justify-between gap-3">
+              <label className="flex items-center gap-2 text-[15px]">
+                <Checkbox checked={anonymous} onCheckedChange={(value) => setAnonymous(value === true)} />
+                익명으로 쓰기
+              </label>
+              <span className="text-[13px] tabular-nums text-muted-foreground">
+                {chars}/{MAX_REVIEW}
+              </span>
+            </div>
+            <div className="mt-2 flex justify-end">
+              <Button type="submit" className="h-9 bg-x px-4 text-x-ink hover:bg-x/90" disabled={pending || !text.trim() || chars > MAX_REVIEW}>
+                올리기
+              </Button>
+            </div>
+          </div>
+        </form>
+        <ul>
         {shelf.data.posts.length === 0 ? (
           <li className="px-4 py-8 text-[15px] text-muted-foreground">아직 요청이 없어용.</li>
         ) : (
@@ -172,6 +226,7 @@ function RequestBoard() {
                   <div className="min-w-0 flex-1">
                     <div className="flex items-baseline gap-2">
                       <p className="truncate text-[15px] font-bold">{showName ? (author?.name ?? '알 수 없어용') : '익명'}</p>
+                      <time className="shrink-0 text-[13px] text-muted-foreground">{formatWhen(post.createdAt)}</time>
                       {post.done ? <span className="shrink-0 rounded-full bg-foreground px-2 py-0.5 text-[12px] font-bold text-background">완료</span> : null}
                     </div>
                     {shelf.admin && post.anonymous ? <p className="text-[13px] text-muted-foreground">멤버에게는 익명으로 보여용</p> : null}
@@ -220,13 +275,14 @@ function RequestBoard() {
                       </form>
                     ) : null}
                     {post.replies.length > 0 ? (
-                      <ul className="mt-2 space-y-2 border-l border-border pl-3">
+                      <ul className="mt-2 border-l border-border pl-3">
                         {post.replies.map((item) => (
-                          <li key={item.id}>
-                            <p className="text-[15px] font-bold">
-                              <span className="rounded-full bg-foreground px-1.5 py-0.5 text-[11px] text-background">관리자</span>
-                            </p>
-                            <p className="text-[15px] leading-snug whitespace-pre-wrap">{item.text}</p>
+                          <li key={item.id} className="py-2">
+                            <div className="flex items-baseline gap-2">
+                              <span className="rounded-full bg-foreground px-1.5 py-0.5 text-[11px] font-bold text-background">관리자</span>
+                              <time className="text-[13px] text-muted-foreground">{formatWhen(item.createdAt)}</time>
+                            </div>
+                            <p className="mt-1 text-[15px] leading-snug whitespace-pre-wrap">{item.text}</p>
                           </li>
                         ))}
                       </ul>
@@ -237,9 +293,14 @@ function RequestBoard() {
             )
           })
         )}
-      </ul>
-    </section>
+        </ul>
+      </div>
+    </EdgeBack>
   )
+}
+
+function formatWhen(at: number) {
+  return new Intl.DateTimeFormat('ko', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }).format(at)
 }
 
 function AdminScreen({ onBack, onClearBooks }: { onBack: () => void; onClearBooks: () => void }) {
