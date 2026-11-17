@@ -56,3 +56,10 @@ export function forgetAccount(id: string): string | null {
   writeWho(fallback)
   return fallback
 }
+
+/** Remove a profile from this phone. If it was the open session, leave the login screen. */
+export function signOutAccount(id: string) {
+  const next = readList().filter((item) => item !== id)
+  writeList(next)
+  if (readWho() === id) writeWho(null)
+}

@@ -1,10 +1,13 @@
 import { useState, type FormEvent } from 'react'
 import { ChevronLeft } from 'lucide-react'
+import { toast } from 'sonner'
 import { readWho } from '@/lib/identity'
 import { MAX_REVIEW } from '@/lib/model'
 import { PATCH_NOTES, formatPatchDate } from '@/lib/patch-notes'
 import { useShelf } from '@/lib/store'
+import type { Friend } from '@/lib/types'
 import { Avatar } from '@/components/avatar-editor'
+import { ConfirmDialog } from '@/components/confirm-dialog'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
@@ -324,9 +327,44 @@ function AdminTools({
   const [next, setNext] = useState('')
   const [again, setAgain] = useState('')
   const [busy, setBusy] = useState(false)
+  const [kicking, setKicking] = useState<Friend | null>(null)
+  const [kickBusy, setKickBusy] = useState(false)
+  const members = shelf.data.friends.filter((friend) => friend.approved)
+
+  async function kick() {
+    if (!kicking || kickBusy) return
+    setKickBusy(true)
+    const ok = await shelf.removeFriend(kicking.id)
+    setKickBusy(false)
+    if (ok) {
+      toast.success('내보냈어용.')
+      setKicking(null)
+    }
+  }
 
   return (
     <div className="grid gap-6">
+      <section>
+        <h2 className="text-[17px] font-bold">멤버</h2>
+        <p className="mt-1 text-sm text-muted-foreground">내보내면 그 사람의 읽은 기록이랑 한 줄 평은 사라져용. 올린 책은 남아용.</p>
+        {members.length === 0 ? (
+          <p className="mt-2 text-sm text-muted-foreground">승인된 멤버가 없어용.</p>
+        ) : (
+          <ul className="mt-2">
+            {members.map((friend) => (
+              <li key={friend.id} className="flex items-center justify-between gap-3 border-b py-3">
+                <div className="min-w-0">
+                  <p className="truncate font-bold">{friend.name}</p>
+                  <p className="text-sm text-muted-foreground">{friend.birthday}</p>
+                </div>
+                <Button type="button" variant="destructive" className="h-11 shrink-0 px-3" onClick={() => setKicking(friend)}>
+                  강퇴
+                </Button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
       <section>
         <h2 className="text-[17px] font-bold">가입 신청</h2>
         {pending.length === 0 ? (
@@ -378,6 +416,18 @@ function AdminTools({
       <Button type="button" variant="outline" className="h-12 text-base" onClick={shelf.logoutAdmin}>
         관리자 로그아웃
       </Button>
+      <ConfirmDialog
+        open={kicking !== null}
+        title={kicking ? `${kicking.name}님을 정말 내보낼 거예용?` : ''}
+        description="읽은 기록이랑 한 줄 평도 같이 사라져용. 이 사람이 올린 책은 서재에 그대로 남아용."
+        confirmLabel="강퇴"
+        destructive
+        pending={kickBusy}
+        onOpenChange={(open) => {
+          if (!open) setKicking(null)
+        }}
+        onConfirm={() => void kick()}
+      />
     </div>
   )
 }

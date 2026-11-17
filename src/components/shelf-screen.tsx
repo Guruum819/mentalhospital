@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Plus } from 'lucide-react'
-import { forgetAccount, readAccounts, readWho, rememberAccount } from '@/lib/identity'
+import { toast } from 'sonner'
+import { forgetAccount, readAccounts, readWho, rememberAccount, signOutAccount } from '@/lib/identity'
 import { nudgeLine, shelfStats, sortedBooks, visibleFriends } from '@/lib/model'
 import { paletteColor } from '@/lib/palette'
 import { useShelf } from '@/lib/store'
@@ -54,20 +55,30 @@ export function ShelfScreen() {
   const [guideOpen, setGuideOpen] = useState(false)
   const [joining, setJoining] = useState(false)
   const awaitingId = useRef<string | null>(null)
+  const seenMe = useRef(false)
+  const leavingId = useRef<string | null>(null)
 
   useEffect(() => {
-    if (!shelf.ready || !meId) return
+    if (!shelf.ready) return
+    for (const id of readAccounts()) {
+      if (id === awaitingId.current) continue
+      if (!shelf.data.friends.some((friend) => friend.id === id)) signOutAccount(id)
+    }
+    if (!meId) return
     if (shelf.data.friends.some((friend) => friend.id === meId)) {
       awaitingId.current = null
+      seenMe.current = true
       setJoining(false)
       rememberAccount(meId)
       return
     }
-    if (awaitingId.current === meId) return
+    if (awaitingId.current === meId || leavingId.current === meId) return
     setJoining(false)
-    const next = forgetAccount(meId)
-    setMeId(next)
-    setAccount(next ? 'app' : 'login')
+    signOutAccount(meId)
+    if (seenMe.current) toast('이 계정은 내보내졌어용.')
+    seenMe.current = false
+    setMeId(null)
+    setAccount('login')
     setStack([{ name: 'home' }])
   }, [shelf.ready, meId, shelf.data.friends])
 
@@ -123,12 +134,16 @@ export function ShelfScreen() {
     setConfirming(true)
     let ok = false
     if (confirm.kind === 'delete-friend') {
+      leavingId.current = confirm.friend.id
       ok = await shelf.removeFriend(confirm.friend.id)
       if (ok && confirm.friend.id === meId) {
         const next = forgetAccount(confirm.friend.id)
+        leavingId.current = null
         setMeId(next)
         setAccount(next ? 'app' : 'login')
         setStack([{ name: 'home' }])
+      } else {
+        leavingId.current = null
       }
     }
     if (confirm.kind === 'delete-book') {

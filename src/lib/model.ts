@@ -72,7 +72,7 @@ export function shelfStats(data: ShelfData) {
   )
   return {
     bookCount: data.books.length,
-    friendCount: data.friends.length,
+    friendCount: friendIds.length,
     readCells,
     totalCells: data.books.length * friendIds.length,
   }

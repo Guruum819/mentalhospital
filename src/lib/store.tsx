@@ -217,7 +217,7 @@ export function ShelfProvider({ children }: { children: ReactNode }) {
           order: nextOrder(shelf.friends),
           photo: storedPhoto,
           birthday: born,
-          approved: !shelf.friends.some((item) => item.approved),
+          approved: shelf.friends.length === 0 && !shelf.admin,
         }
         const ok = await guard(() => repo.saveFriend(friend))
         if (ok) toast.success(friend.approved ? '프로필을 만들었어용.' : '가입 신청을 보냈어용.')
@@ -253,6 +253,10 @@ export function ShelfProvider({ children }: { children: ReactNode }) {
         return guard(() => repo.saveFriend({ ...current, name: clean, color, photo: storedPhoto, birthday: born }))
       },
       removeFriend(id) {
+        if (id !== readWho() && !isAdmin()) {
+          toast.error('관리자만 내보낼 수 있어용.')
+          return Promise.resolve(false)
+        }
         return guard(() => repo.deleteFriend(id))
       },
       async approveFriend(id) {
