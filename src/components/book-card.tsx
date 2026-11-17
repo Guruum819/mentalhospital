@@ -119,27 +119,29 @@ export function BookCard({
         onOpen(book.id)
       }}
     >
-      <div className="flex items-start gap-3">
-        <div className="w-[5.5rem] shrink-0">
+      <div className="grid grid-cols-[auto_minmax(0,1fr)] items-stretch gap-3">
+        <div className="h-full">
+          <div className="relative h-full overflow-hidden rounded-md [aspect-ratio:2/3]">
           {book.coverUrl && !brokenCover ? (
             <img
               src={book.coverUrl}
               alt=""
               referrerPolicy="no-referrer"
-              className="aspect-[2/3] w-full rounded-md object-cover"
+              className="absolute inset-0 h-full w-full object-cover"
               onError={() => setBrokenCover(true)}
             />
           ) : (
-            <div className="flex aspect-[2/3] w-full flex-col items-center justify-center gap-1 rounded-md bg-muted text-muted-foreground">
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-muted text-muted-foreground">
               <ImageOff className="size-4" />
               <span className="px-1 text-center text-[11px] leading-tight">표지가 없어용</span>
             </div>
           )}
+          </div>
         </div>
 
         <div className="min-w-0 flex-1">
           <div className="flex items-start gap-2">
-            <h2 data-testid="book-title" className="min-w-0 flex-1 text-[17px] leading-snug font-bold tracking-tight break-words">
+            <h2 data-testid="book-title" className="line-clamp-2 min-w-0 flex-1 break-keep text-[17px] leading-snug font-bold tracking-tight">
               {book.title}
             </h2>
             {(me && !mineRead) || book.buyerId === meId ? (
