@@ -825,7 +825,7 @@ export function replyAlertLine(name: string, preview: string): string {
 }
 
 export function nudgeAlertLine(name: string, title: string): string {
-  return `${name}님이 『${title}』 빨리 읽으래용!`
+  return `${name}님이 『${title}』 뱉으래용!`
 }
 
 export const DAILY_NUDGE_LIMIT = 4
@@ -866,6 +866,6 @@ export function unreadNotificationCount(notifications: ShelfData['notifications'
 export function nudgeLine(namesOldestFirst: readonly string[]): string {
   if (namesOldestFirst.length === 0) return ''
   const name = namesOldestFirst[namesOldestFirst.length - 1] ?? ''
-  if (namesOldestFirst.length === 1) return `${name}님이 빨리 읽으래용!`
-  return `${name}님 외 ${namesOldestFirst.length - 1}명이 빨리 읽으래용!`
+  if (namesOldestFirst.length === 1) return `${name}님이 뱉으래용!`
+  return `${name}님 외 ${namesOldestFirst.length - 1}명이 뱉으래용!`
 }

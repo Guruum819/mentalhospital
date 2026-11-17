@@ -167,8 +167,8 @@ test('book sort puts unrated last and comment sort follows likes', () => {
   assert.equal(read[2]?.id, 'new')
   const liked = sortedComments(reviews.filter((review) => !review.parentId), 'likes')
   assert.equal(liked[0]?.id, 'r1')
-  assert.equal(nudgeLine(['민수']), '민수님이 빨리 읽으래용!')
-  assert.equal(nudgeLine(['민수', '채령']), '채령님 외 1명이 빨리 읽으래용!')
+  assert.equal(nudgeLine(['민수']), '민수님이 뱉으래용!')
+  assert.equal(nudgeLine(['민수', '채령']), '채령님 외 1명이 뱉으래용!')
   assert.equal(formatPatchDate('2026-11-17'), '2026년 11월 17일')
   assert.equal(cleanCover('data:image/jpeg;base64,aaaa'), 'data:image/jpeg;base64,aaaa')
   assert.equal(cleanCover('data:image/png;base64,aaaa'), null)
@@ -240,7 +240,7 @@ test('notifications stay under the member, skip my own actions, and unlike remov
   assert.equal(replyAlertLine('민수', '다음 장도 좋았어용'), '민수님이 내 한 줄 평에 답글을 달았어용: 다음 장도 좋았어용')
   assert.equal(replyAlertLine('민수', '가'.repeat(50)).endsWith('…'), true)
   assert.equal(replyAlertLine('민수', '가'.repeat(50)).includes('가'.repeat(41)), false)
-  assert.equal(nudgeAlertLine('민수', '작별하지 않는다'), '민수님이 『작별하지 않는다』 빨리 읽으래용!')
+  assert.equal(nudgeAlertLine('민수', '작별하지 않는다'), '민수님이 『작별하지 않는다』 뱉으래용!')
 })
 
 test('each member gets four nudges per Seoul day', () => {
