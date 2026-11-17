@@ -73,6 +73,7 @@ export function AppDrawer({
       if (Math.abs(dx) < 10 && Math.abs(dy) < 10) return
       if (Math.abs(dy) > Math.abs(dx)) {
         drag.current = null
+        if (current.target.hasPointerCapture(event.pointerId)) current.target.releasePointerCapture(event.pointerId)
         return
       }
       current.axis = 'x'
@@ -112,10 +113,11 @@ export function AppDrawer({
           aria-hidden
           className="fixed top-0 bottom-0 left-0 z-40 w-4"
           style={{ touchAction: 'none' }}
-          onPointerDown={(event) => {
-            if (open) return
-            begin(event, 0)
-          }}
+        onPointerDown={(event) => {
+          if (open) return
+          event.currentTarget.setPointerCapture(event.pointerId)
+          begin(event, 0)
+        }}
           onPointerMove={move}
           onPointerUp={end}
           onPointerCancel={end}

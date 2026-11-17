@@ -411,6 +411,7 @@ function EdgeBack({ onBack, children }: { onBack: () => void; children: ReactNod
         className="fixed top-0 bottom-0 left-0 z-30 w-4"
         style={{ touchAction: 'none' }}
         onPointerDown={(event) => {
+          event.currentTarget.setPointerCapture(event.pointerId)
           drag.current = { x: event.clientX, y: event.clientY, active: false, pointerId: event.pointerId }
         }}
         onPointerMove={(event) => {
@@ -422,6 +423,7 @@ function EdgeBack({ onBack, children }: { onBack: () => void; children: ReactNod
             if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return
             if (dx <= 0 || Math.abs(dy) > Math.abs(dx)) {
               drag.current = null
+              if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId)
               return
             }
             current.active = true
