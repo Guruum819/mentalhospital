@@ -1,23 +1,45 @@
 import type { FirebaseOptions } from 'firebase/app'
 
 export type FirebasePublicConfig = Required<
-  Pick<FirebaseOptions, 'apiKey' | 'authDomain' | 'databaseURL' | 'projectId' | 'appId'>
+  Pick<
+    FirebaseOptions,
+    | 'apiKey'
+    | 'authDomain'
+    | 'databaseURL'
+    | 'projectId'
+    | 'appId'
+    | 'storageBucket'
+    | 'messagingSenderId'
+  >
 >
 
-const FIELDS = [
-  ['VITE_FIREBASE_API_KEY', 'apiKey'],
-  ['VITE_FIREBASE_AUTH_DOMAIN', 'authDomain'],
-  ['VITE_FIREBASE_DATABASE_URL', 'databaseURL'],
-  ['VITE_FIREBASE_PROJECT_ID', 'projectId'],
-  ['VITE_FIREBASE_APP_ID', 'appId'],
-] as const
+/** Public web config. Visible in the page bundle; Realtime Database rules are the access control. */
+export const PUBLIC_FIREBASE_CONFIG: FirebasePublicConfig = {
+  apiKey: 'AIzaSyC_dOaZkf6EvX_K2oha_d45Eq6OKpUKKnc',
+  authDomain: 'mentalhospital.firebaseapp.com',
+  databaseURL: 'https://mentalhospital-default-rtdb.asia-southeast1.firebasedatabase.app',
+  projectId: 'mentalhospital',
+  appId: '1:157804241076:web:e1471c055752d88708b7e1',
+  storageBucket: 'mentalhospital.firebasestorage.app',
+  messagingSenderId: '157804241076',
+}
+
+function envValue(value: string | undefined): string {
+  return value?.trim() ?? ''
+}
 
 export function readFirebaseConfig(): FirebasePublicConfig | null {
-  const config = {} as FirebasePublicConfig
-  for (const [envName, key] of FIELDS) {
-    const value = import.meta.env[envName]?.trim()
-    if (!value) return null
-    config[key] = value
+  const config: FirebasePublicConfig = {
+    apiKey: envValue(import.meta.env.VITE_FIREBASE_API_KEY) || PUBLIC_FIREBASE_CONFIG.apiKey,
+    authDomain: envValue(import.meta.env.VITE_FIREBASE_AUTH_DOMAIN) || PUBLIC_FIREBASE_CONFIG.authDomain,
+    databaseURL: envValue(import.meta.env.VITE_FIREBASE_DATABASE_URL) || PUBLIC_FIREBASE_CONFIG.databaseURL,
+    projectId: envValue(import.meta.env.VITE_FIREBASE_PROJECT_ID) || PUBLIC_FIREBASE_CONFIG.projectId,
+    appId: envValue(import.meta.env.VITE_FIREBASE_APP_ID) || PUBLIC_FIREBASE_CONFIG.appId,
+    storageBucket: PUBLIC_FIREBASE_CONFIG.storageBucket,
+    messagingSenderId: PUBLIC_FIREBASE_CONFIG.messagingSenderId,
+  }
+  if (!config.apiKey || !config.authDomain || !config.databaseURL || !config.projectId || !config.appId) {
+    return null
   }
   return config
 }
