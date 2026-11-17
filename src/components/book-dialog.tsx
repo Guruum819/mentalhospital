@@ -146,7 +146,7 @@ export function BookDialog({
                   <Loader2 className="size-4 animate-spin" /> 찾는 중
                 </p>
               ) : null}
-              {warning ? <p className="text-sm text-destructive">{warning}</p> : null}
+              {warning ? <p className="text-sm text-muted-foreground">{warning}</p> : null}
               {query.trim().length >= 2 && !searching && hits.length === 0 ? (
                 <p className="text-sm text-muted-foreground">맞는 책이 없어요. 직접 입력해 주세요.</p>
               ) : null}
@@ -192,7 +192,16 @@ export function BookDialog({
                   </Button>
                 </form>
               ) : (
-                <Button type="button" variant="outline" className="h-12 w-full text-base" onClick={() => setManual(true)}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-12 w-full text-base"
+                  data-testid="manual-entry"
+                  onClick={() => {
+                    setManual(true)
+                    setTitle((current) => (current.trim() ? current : query.trim()))
+                  }}
+                >
                   검색 없이 직접 입력
                 </Button>
               )}

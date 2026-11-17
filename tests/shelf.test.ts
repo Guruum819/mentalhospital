@@ -1,6 +1,15 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { hitsFromGoogle, hitsFromKakao, stripHtml } from '../src/lib/book-search.ts'
+import {
+  authorFromWikiDescription,
+  combineBookHits,
+  hitsFromGoogle,
+  hitsFromKakao,
+  hitsFromWiki,
+  httpsUrl,
+  stripHtml,
+  type BookHit,
+} from '../src/lib/book-search.ts'
 import { cleanBirthday, cleanReview, findProfile, sameIdentity, toggledRead } from '../src/lib/model.ts'
 import { PALETTE } from '../src/lib/palette.ts'
 import { starterShelf } from '../src/lib/seed.ts'
@@ -51,4 +60,36 @@ test('reviews stay within 200 characters and search keeps cover', () => {
     items: [{ id: 'g1', volumeInfo: { title: '데미안', authors: ['헤르만 헤세'], imageLinks: { thumbnail: 'https://books.google.com/a&zoom=1' } } }],
   })
   assert.equal(google[0]?.coverUrl, 'https://books.google.com/a&zoom=2')
+  assert.equal(httpsUrl('//thumb.wikimedia.org/a/60px-b.jpg'), 'https://thumb.wikimedia.org/a/60px-b.jpg')
+})
+
+test('Hangul search prefers the Korean title and keeps a cover', () => {
+  assert.equal(authorFromWikiDescription('한강의 소설'), '한강')
+  assert.equal(authorFromWikiDescription('작가 한강의 소설'), '한강')
+  assert.equal(authorFromWikiDescription('1919년 헤르만 헤세의 철학, 성장 소설'), '헤르만 헤세')
+  assert.equal(authorFromWikiDescription('위키미디어 동음이의어 문서'), '')
+  const wiki = hitsFromWiki(
+    {
+      pages: [
+        { id: 1, title: '작별하지 않는다', description: '한강의 소설', thumbnail: null },
+        { id: 2, title: '작별', description: '위키미디어 동음이의어 문서' },
+        { id: 3, title: '작별하지 않는다 (영화)', description: '영화' },
+      ],
+    },
+    '작별하지 않는다',
+  )
+  assert.equal(wiki.length, 1)
+  assert.equal(wiki[0]?.author, '한강')
+  const romanized: BookHit = {
+    id: 'ol',
+    title: 'Chakpyŏl haji annŭnda',
+    author: 'Han Kang',
+    coverUrl: 'https://covers.openlibrary.org/b/id/14835467-L.jpg',
+    source: 'openlibrary',
+  }
+  const hits = combineBookHits({ wiki, openlibrary: [romanized] }, '작별하지 않는다')
+  assert.equal(hits.length, 1)
+  assert.equal(hits[0]?.title, '작별하지 않는다')
+  assert.equal(hits[0]?.author, '한강')
+  assert.equal(hits[0]?.coverUrl, romanized.coverUrl)
 })

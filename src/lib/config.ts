@@ -44,6 +44,17 @@ export function readFirebaseConfig(): FirebasePublicConfig | null {
   return config
 }
 
+/** Optional Kakao REST API key. Env wins; leave this empty when there is no key. */
+export const PUBLIC_KAKAO_REST_API_KEY = ''
+
+export function readKakaoKey(): string {
+  return envValue(import.meta.env.VITE_KAKAO_REST_API_KEY) || PUBLIC_KAKAO_REST_API_KEY
+}
+
+export function readGoogleBooksKey(): string {
+  return envValue(import.meta.env.VITE_GOOGLE_BOOKS_API_KEY) || readFirebaseConfig()?.apiKey || ''
+}
+
 export function emulatorAddress(): { host: string; port: number } | null {
   const raw = import.meta.env.VITE_FIREBASE_EMULATOR?.trim()
   if (!raw) return null

@@ -1,9 +1,11 @@
+import { readGoogleBooksKey, readKakaoKey } from './config.ts'
+
 export type BookHit = {
   id: string
   title: string
   author: string
   coverUrl: string | null
-  source: 'kakao' | 'google' | 'openlibrary'
+  source: 'kakao' | 'google' | 'openlibrary' | 'wiki'
 }
 
 export type SearchOutcome = {
@@ -12,6 +14,8 @@ export type SearchOutcome = {
 }
 
 const MAX_HITS = 8
+const HANGUL = /[가-힣]/
+const QUOTA_WARNING = '표지 검색이 잠시 제한되어 있어요. 제목과 저자는 직접 입력할 수 있어요.'
 
 export function stripHtml(value: string): string {
   return value
@@ -27,31 +31,116 @@ export function stripHtml(value: string): string {
 
 export function httpsUrl(value: unknown): string | null {
   if (typeof value !== 'string') return null
-  const url = value.trim().replace(/^http:\/\//i, 'https://')
-  if (!/^https:\/\/\S+$/i.test(url) || url.length > 500) return null
+  let url = value.trim()
+  if (url.startsWith('//')) url = `https:${url}`
+  url = url.replace(/^http:\/\//i, 'https://')
+  if (!/^https:\/\/\S+$/i.test(url) || url.length > 800) return null
   return url.replace('zoom=1', 'zoom=2')
+}
+
+export function hasHangul(value: string): boolean {
+  return HANGUL.test(value)
+}
+
+export function authorFromWikiDescription(description: string): string {
+  const text = stripHtml(description)
+  if (!text || text.includes('동음이의')) return ''
+  const match = text.match(
+    /((?:[가-힣]{2,8})(?:\s+[가-힣]{1,8})?|(?:[A-Z][a-zA-Z.'’-]+)(?:\s+[A-Z][a-zA-Z.'’-]+){0,3})의\s+(?:[^.]{0,30})?(?:장편소설|장편 소설|소설|시집|수필|에세이|동화|그림책)(?![가-힣])/,
+  )
+  return match?.[1]?.replace(/^작가\s*/, '').trim() ?? ''
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === 'object' && !Array.isArray(value)
 }
 
-function dedupe(hits: BookHit[]): BookHit[] {
-  const seen = new Set<string>()
-  const unique: BookHit[] = []
-  for (const hit of hits) {
-    const key = `${hit.title}\u0000${hit.author}`.toLocaleLowerCase('ko')
-    if (!hit.title || seen.has(key)) continue
-    seen.add(key)
-    unique.push(hit)
-    if (unique.length >= MAX_HITS) break
-  }
-  return unique
+function normalizeTitle(value: string): string {
+  return value
+    .normalize('NFKC')
+    .toLocaleLowerCase('ko')
+    .replace(/[\s"'“”‘’「」()[\]{}.,·:：/\\-]+/g, '')
 }
 
 function namesOf(value: unknown): string {
   if (!Array.isArray(value)) return ''
   return stripHtml(value.filter((author) => typeof author === 'string').join(', '))
+}
+
+function wikiImage(value: unknown): string | null {
+  if (!isRecord(value)) return null
+  const raw = typeof value.url === 'string' ? value.url : typeof value.source === 'string' ? value.source : ''
+  const url = httpsUrl(raw)
+  if (!url) return null
+  return url.replace(/\/\d+px-/, '/330px-')
+}
+
+function acceptWikiPage(title: string, description: string, query: string): boolean {
+  if (!title || description.includes('동음이의')) return false
+  if (/\((영화|드라마|앨범|노래|만화|게임)\)/.test(title)) return false
+  const nTitle = normalizeTitle(title)
+  const nQuery = normalizeTitle(query)
+  if (!nTitle || !nQuery) return false
+  if (nTitle.length + 1 < nQuery.length && nQuery.startsWith(nTitle)) return false
+  return nTitle.includes(nQuery) || nQuery.includes(nTitle)
+}
+
+function scoreHit(hit: BookHit, query: string): number {
+  const title = normalizeTitle(hit.title)
+  const q = normalizeTitle(query)
+  let score = 0
+  if (title && title === q) score += 8
+  else if (title && q && (title.includes(q) || q.includes(title))) score += 3
+  if (hasHangul(hit.title)) score += 4
+  if (hasHangul(hit.author)) score += 2
+  if (hit.coverUrl) score += 2
+  score += { kakao: 3, google: 2, wiki: 1, openlibrary: 0 }[hit.source]
+  return score
+}
+
+export function orderHits(hits: BookHit[], query: string): BookHit[] {
+  const ranked = [...hits].sort((a, b) => scoreHit(b, query) - scoreHit(a, query) || a.title.localeCompare(b.title, 'ko'))
+  const seen = new Set<string>()
+  const unique: BookHit[] = []
+  for (const hit of ranked) {
+    const key = normalizeTitle(hit.title)
+    if (!hit.title || !key || seen.has(key)) continue
+    seen.add(key)
+    unique.push(hit)
+  }
+  const kept =
+    hasHangul(query) && unique.some((hit) => hasHangul(hit.title))
+      ? unique.filter((hit) => hasHangul(hit.title))
+      : unique
+  return kept.slice(0, MAX_HITS)
+}
+
+function withBorrowedCover(wiki: BookHit[], openlibrary: BookHit[], query: string): BookHit[] {
+  if (openlibrary.length !== 1 || !openlibrary[0]?.coverUrl) return wiki
+  const nQuery = normalizeTitle(query)
+  const index = wiki.findIndex((hit) => {
+    const title = normalizeTitle(hit.title)
+    return !hit.coverUrl && (title === nQuery || title.startsWith(nQuery))
+  })
+  if (index < 0) return wiki
+  const next = wiki.slice()
+  next[index] = { ...wiki[index], coverUrl: openlibrary[0].coverUrl }
+  return next
+}
+
+function koreanizeSingle(hits: BookHit[], query: string): BookHit[] {
+  if (!hasHangul(query) || hits.length !== 1 || hasHangul(hits[0]?.title ?? '')) return hits
+  return [{ ...hits[0], title: query.trim() }]
+}
+
+export function combineBookHits(
+  input: { wiki?: BookHit[]; kakao?: BookHit[]; google?: BookHit[]; openlibrary?: BookHit[] },
+  query: string,
+): BookHit[] {
+  const openlibrary = input.openlibrary ?? []
+  const wiki = withBorrowedCover(input.wiki ?? [], openlibrary, query)
+  const library = wiki.some((hit) => hasHangul(hit.title)) ? openlibrary : koreanizeSingle(openlibrary, query)
+  return orderHits([...(input.kakao ?? []), ...(input.google ?? []), ...wiki, ...library], query)
 }
 
 export function hitsFromKakao(payload: unknown): BookHit[] {
@@ -69,7 +158,7 @@ export function hitsFromKakao(payload: unknown): BookHit[] {
       source: 'kakao',
     })
   })
-  return dedupe(hits)
+  return hits
 }
 
 export function hitsFromGoogle(payload: unknown): BookHit[] {
@@ -89,7 +178,7 @@ export function hitsFromGoogle(payload: unknown): BookHit[] {
       source: 'google',
     })
   })
-  return dedupe(hits)
+  return hits
 }
 
 export function hitsFromOpenLibrary(payload: unknown): BookHit[] {
@@ -105,7 +194,26 @@ export function hitsFromOpenLibrary(payload: unknown): BookHit[] {
       source: 'openlibrary',
     })
   })
-  return dedupe(hits)
+  return hits
+}
+
+export function hitsFromWiki(payload: unknown, query: string): BookHit[] {
+  if (!isRecord(payload) || !Array.isArray(payload.pages)) return []
+  const hits: BookHit[] = []
+  payload.pages.forEach((page) => {
+    if (!isRecord(page) || typeof page.title !== 'string') return
+    const title = stripHtml(page.title)
+    const description = typeof page.description === 'string' ? stripHtml(page.description) : ''
+    if (!acceptWikiPage(title, description, query)) return
+    hits.push({
+      id: `wiki-${typeof page.id === 'number' ? page.id : title}`,
+      title,
+      author: authorFromWikiDescription(description),
+      coverUrl: wikiImage(page.thumbnail),
+      source: 'wiki',
+    })
+  })
+  return hits
 }
 
 async function fetchJson(url: string, signal: AbortSignal, headers?: HeadersInit): Promise<unknown> {
@@ -123,59 +231,83 @@ async function fetchJson(url: string, signal: AbortSignal, headers?: HeadersInit
   return payload
 }
 
-function googleUrl(query: string): string {
-  const key = import.meta.env.VITE_GOOGLE_BOOKS_API_KEY?.trim()
+function googleUrl(query: string, key: string, langRestrict: boolean): string {
   const url = new URL('https://www.googleapis.com/books/v1/volumes')
   url.searchParams.set('q', query)
   url.searchParams.set('maxResults', '8')
   url.searchParams.set('printType', 'books')
+  url.searchParams.set('country', 'KR')
+  if (langRestrict) url.searchParams.set('langRestrict', 'ko')
   if (key) url.searchParams.set('key', key)
   return url.toString()
+}
+
+async function searchGoogle(query: string, signal: AbortSignal): Promise<{ hits: BookHit[]; quota: boolean }> {
+  const key = readGoogleBooksKey()
+  const attempts = hasHangul(query) ? [true, false] : [false]
+  for (const restrict of attempts) {
+    try {
+      const payload = await fetchJson(googleUrl(query, key, restrict), signal)
+      const hits = hitsFromGoogle(payload)
+      if (hits.length > 0 || !restrict) return { hits, quota: false }
+    } catch (error) {
+      if (signal.aborted) throw error
+      const status = (error as { status?: number }).status
+      if (status === 429) return { hits: [], quota: true }
+      return { hits: [], quota: false }
+    }
+  }
+  return { hits: [], quota: false }
+}
+
+async function searchKakao(query: string, signal: AbortSignal, key: string): Promise<BookHit[]> {
+  const payload = await fetchJson(
+    `https://dapi.kakao.com/v3/search/book?size=8&query=${encodeURIComponent(query)}`,
+    signal,
+    { Authorization: `KakaoAK ${key}` },
+  )
+  return hitsFromKakao(payload)
+}
+
+async function searchWiki(query: string, signal: AbortSignal): Promise<BookHit[]> {
+  const payload = await fetchJson(
+    `https://ko.wikipedia.org/w/rest.php/v1/search/page?limit=8&q=${encodeURIComponent(query)}`,
+    signal,
+  )
+  return hitsFromWiki(payload, query)
+}
+
+async function searchOpenLibrary(query: string, signal: AbortSignal): Promise<BookHit[]> {
+  const language = hasHangul(query) ? '&language=kor' : ''
+  const payload = await fetchJson(
+    `https://openlibrary.org/search.json?limit=5${language}&q=${encodeURIComponent(query)}`,
+    signal,
+  )
+  return hitsFromOpenLibrary(payload)
+}
+
+async function safeHits(run: () => Promise<BookHit[]>, signal: AbortSignal): Promise<BookHit[]> {
+  try {
+    return await run()
+  } catch (error) {
+    if (signal.aborted) throw error
+    return []
+  }
 }
 
 export async function searchBooks(query: string, signal: AbortSignal): Promise<SearchOutcome> {
   const q = query.trim()
   if (q.length < 2) return { hits: [], warning: null }
 
-  const kakaoKey = import.meta.env.VITE_KAKAO_REST_API_KEY?.trim()
-  if (kakaoKey) {
-    try {
-      const payload = await fetchJson(
-        `https://dapi.kakao.com/v3/search/book?size=8&query=${encodeURIComponent(q)}`,
-        signal,
-        { Authorization: `KakaoAK ${kakaoKey}` },
-      )
-      const hits = hitsFromKakao(payload)
-      if (hits.length > 0) return { hits, warning: null }
-    } catch (error) {
-      if (signal.aborted) throw error
-    }
-  }
+  const kakaoKey = readKakaoKey()
+  const [wiki, kakao, openlibrary, google] = await Promise.all([
+    hasHangul(q) ? safeHits(() => searchWiki(q, signal), signal) : Promise.resolve([]),
+    kakaoKey ? safeHits(() => searchKakao(q, signal, kakaoKey), signal) : Promise.resolve([]),
+    safeHits(() => searchOpenLibrary(q, signal), signal),
+    searchGoogle(q, signal),
+  ])
 
-  let warning: string | null = null
-  try {
-    const payload = await fetchJson(googleUrl(q), signal)
-    const hits = hitsFromGoogle(payload)
-    if (hits.length > 0) return { hits, warning: null }
-  } catch (error) {
-    if (signal.aborted) throw error
-    const status = (error as { status?: number }).status
-    warning =
-      status === 429
-        ? 'Google 책 검색 한도에 걸렸어요. 직접 입력하거나, README대로 카카오 키를 넣을 수 있어요.'
-        : null
-  }
-
-  try {
-    const payload = await fetchJson(
-      `https://openlibrary.org/search.json?limit=8&q=${encodeURIComponent(q)}`,
-      signal,
-    )
-    const hits = hitsFromOpenLibrary(payload)
-    if (hits.length > 0) return { hits, warning }
-  } catch (error) {
-    if (signal.aborted) throw error
-  }
-
-  return { hits: [], warning }
+  const hits = combineBookHits({ wiki, kakao, google: google.hits, openlibrary }, q)
+  const warning = google.quota && !hits.some((hit) => hasHangul(hit.title)) ? QUOTA_WARNING : null
+  return { hits, warning }
 }
