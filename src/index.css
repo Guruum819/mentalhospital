@@ -141,6 +141,17 @@ button,
   touch-action: manipulation;
 }
 
+@keyframes nudge-poke {
+  0% { transform: translateX(0) rotate(0) scale(1); }
+  35% { transform: translateX(8px) rotate(-12deg) scale(1.15); }
+  70% { transform: translateX(-2px) rotate(6deg) scale(0.96); }
+  100% { transform: translateX(0) rotate(0) scale(1); }
+}
+
+.nudge-poke {
+  animation: nudge-poke 640ms ease;
+}
+
 #root {
   min-height: 100dvh;
   overflow-x: hidden;

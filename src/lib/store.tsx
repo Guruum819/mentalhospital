@@ -58,7 +58,7 @@ type ShelfApi = {
   toggleRead: (bookId: string, friendId: string) => Promise<void>
   setReading: (bookId: string, friendId: string | null) => Promise<void>
   markFinished: (bookId: string) => Promise<void>
-  nudge: (bookId: string) => Promise<void>
+  nudge: (bookId: string) => Promise<boolean>
   dismissNudges: (bookId: string) => Promise<void>
   toggleQueue: (bookId: string) => Promise<void>
   addRequest: (text: string, anonymous: boolean) => Promise<boolean>
@@ -560,21 +560,24 @@ export function ShelfProvider({ children }: { children: ReactNode }) {
       async nudge(bookId) {
         const me = readWho()
         const shelf = shownNow()
-        const reader = shelf.reading[bookId]
-        if (!me || !reader || reader === me) {
+        const readerId = shelf.reading[bookId]
+        const reader = shelf.friends.find((friend) => friend.id === readerId && friend.approved)
+        const member = shelf.friends.some((friend) => friend.id === me && friend.approved)
+        if (!me || !member || !reader || reader.id === me) {
           toast('지금 읽는 친구에게만 독촉할 수 있어용')
-          return
+          return false
         }
         if ((shelf.nudges[bookId] ?? []).includes(me)) {
           toast('이미 독촉했어용')
-          return
+          return false
         }
         if (nudgesRemaining(shelf.nudgeSends[me] ?? [], Date.now()) === 0) {
           toast('오늘 독촉은 다 썼어용')
-          return
+          return false
         }
         const ok = await guard(() => repo.setNudge(bookId, me, Date.now()))
-        if (ok) toast.success('독촉했어용')
+        if (ok) toast.success(`${reader.name}님한테 독촉했어용!`)
+        return ok
       },
       async dismissNudges(bookId) {
         const me = readWho()

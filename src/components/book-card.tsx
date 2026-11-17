@@ -78,6 +78,8 @@ export function BookCard({
   const shelf = useShelf()
   const [brokenCover, setBrokenCover] = useState(false)
   const [choiceOpen, setChoiceOpen] = useState(false)
+  const [poking, setPoking] = useState(false)
+  const now = useNow()
   const friends = visibleFriends(shelf.data.friends)
   const readCount = countReads(
     shelf.data.reads,
@@ -92,6 +94,10 @@ export function BookCard({
   const meSwatch = me ? paletteColor(me.color) : null
   const mineReading = readerId === meId
   const mineRead = Boolean(shelf.data.reads[book.id]?.[meId])
+  const nudged = (shelf.data.nudges[book.id] ?? []).includes(meId)
+  const remaining = nudgesRemaining(shelf.data.nudgeSends[meId] ?? [], now)
+  const canNudge = Boolean(reader && me && !mineReading)
+  const outOfNudges = remaining === 0
   const average = averageRating(shelf.data.reviews.filter((review) => review.bookId === book.id))
 
   return (
@@ -208,9 +214,39 @@ export function BookCard({
 
       <div className="mt-2 space-y-2">
         {reader && readerSwatch && !mineReading ? (
-          <div className="flex h-11 min-w-0 items-center gap-2 rounded-full px-3 text-[15px] font-bold" data-testid={`reading-${book.id}`} style={{ backgroundColor: readerSwatch.hex, color: inkFor(readerSwatch.hex) }}>
-            <span className="shrink-0 text-[13px] font-medium opacity-90">읽는 중</span>
-            <span className="truncate">{reader.name}</span>
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <div
+                className={`flex h-11 min-w-0 flex-1 items-center gap-2 rounded-full px-3 text-[15px] font-bold ${poking ? 'nudge-poke' : ''}`}
+                data-testid={`reading-${book.id}`}
+                style={{ backgroundColor: readerSwatch.hex, color: inkFor(readerSwatch.hex) }}
+              >
+                <span className="shrink-0 text-[13px] font-medium opacity-90">읽는 중</span>
+                <span className="truncate">{reader.name}</span>
+              </div>
+              {canNudge ? (
+                <button
+                  type="button"
+                  data-testid="nudge-reader"
+                  className="h-9 shrink-0 rounded-full bg-x px-3 text-[13px] font-bold text-white disabled:opacity-50"
+                  disabled={nudged || outOfNudges || poking}
+                  onClick={() => {
+                    void shelf.nudge(book.id).then((ok) => {
+                      if (!ok) return
+                      setPoking(true)
+                      window.setTimeout(() => setPoking(false), 640)
+                    })
+                  }}
+                >
+                  <span className={`inline-block ${poking ? 'nudge-poke' : ''}`} aria-hidden>👉</span> 독촉
+                </button>
+              ) : null}
+            </div>
+            {canNudge ? (
+              <p data-testid="nudge-remaining" className="px-1 text-[13px] font-medium text-muted-foreground">
+                {nudgeAllowanceLine(remaining)}
+              </p>
+            ) : null}
           </div>
         ) : null}
         {mineReading && reader && readerSwatch ? (
@@ -343,37 +379,17 @@ function ReadingExtras({
   const queue = (shelf.data.queues[bookId] ?? [])
     .map((id) => shelf.data.friends.find((friend) => friend.id === id))
     .filter((friend): friend is NonNullable<typeof friend> => Boolean(friend))
-  const nudged = nudges.includes(meId)
   const queued = queue.some((friend) => friend.id === meId)
   const mine = readerId === meId
-  const now = useNow()
-  const remaining = nudgesRemaining(shelf.data.nudgeSends[meId] ?? [], now)
-  const outOfNudges = remaining === 0
 
   return (
     <div className="mt-2 space-y-2">
       <div className="flex flex-wrap gap-2">
-        {mine ? (
-          nudges.length > 0 ? (
-            <span className="inline-flex h-11 items-center rounded-full bg-x px-3 text-[15px] font-bold text-white">
-              독촉 {nudges.length}
-            </span>
-          ) : null
-        ) : (
-          <button
-            type="button"
-            className="h-11 rounded-full bg-x px-3 text-[15px] font-bold text-white disabled:opacity-50"
-            disabled={nudged || outOfNudges}
-            onClick={() => void shelf.nudge(bookId)}
-          >
-            {nudged ? '독촉했어용' : '독촉하기'}
-          </button>
-        )}
-        {mine ? null : (
-          <span data-testid="nudge-remaining" className="inline-flex h-11 items-center text-[13px] font-medium text-muted-foreground">
-            {nudgeAllowanceLine(remaining)}
+        {mine && nudges.length > 0 ? (
+          <span className="inline-flex h-11 items-center rounded-full bg-x px-3 text-[15px] font-bold text-white">
+            독촉 {nudges.length}
           </span>
-        )}
+        ) : null}
         {mine ? null : (
           <button
             type="button"

@@ -299,6 +299,8 @@ function createFirebaseRepo(): ShelfRepository {
       await write(values)
     },
     async setNudge(bookId, friendId, at) {
+      const readerId = current.reading[bookId]
+      if (!readerId || readerId === friendId) return
       if ((current.nudges[bookId] ?? []).includes(friendId)) return
       const previous = current.nudgeSends[friendId] ?? []
       const next = nextNudgeSends(previous, at)
@@ -563,6 +565,8 @@ function createDemoRepo(): ShelfRepository {
       persist(next, true)
     },
     async setNudge(bookId, friendId, at) {
+      const readerId = current.reading[bookId]
+      if (!readerId || readerId === friendId) return
       const ids = current.nudges[bookId] ?? []
       if (ids.includes(friendId)) return
       const sends = nextNudgeSends(current.nudgeSends[friendId] ?? [], at)
