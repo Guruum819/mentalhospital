@@ -1,6 +1,7 @@
-import { useState, type FormEvent, type ReactNode } from 'react'
+import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { ChevronLeft } from 'lucide-react'
 import { toast } from 'sonner'
+import { APP_BUILD_TIME, fetchDeployedBuildTime, formatBuildLabel, isNewerBuild, reloadLatestBuild } from '@/lib/app-build'
 import { readWho } from '@/lib/identity'
 import { MAX_REVIEW } from '@/lib/model'
 import { formatPatchDate, patchNotesNewestFirst } from '@/lib/patch-notes'
@@ -32,6 +33,32 @@ export function SettingsPage({
   const shelf = useShelf()
   const [adminOpen, setAdminOpen] = useState(false)
   const [panel, setPanel] = useState<'root' | 'patches' | 'board' | string>('root')
+  const [newerBuild, setNewerBuild] = useState(false)
+  const [refreshing, setRefreshing] = useState(false)
+  const buildLabel = formatBuildLabel(APP_BUILD_TIME)
+
+  useEffect(() => {
+    let cancel = false
+    void fetchDeployedBuildTime()
+      .then((remote) => {
+        if (!cancel && remote && isNewerBuild(APP_BUILD_TIME, remote)) setNewerBuild(true)
+      })
+      .catch(() => undefined)
+    return () => {
+      cancel = true
+    }
+  }, [])
+
+  async function refreshBuild() {
+    if (refreshing) return
+    setRefreshing(true)
+    try {
+      await reloadLatestBuild()
+    } catch {
+      toast.error('새 버전을 불러오지 못했어용.')
+      setRefreshing(false)
+    }
+  }
 
   if (adminOpen) {
     return <AdminScreen onBack={() => setAdminOpen(false)} />
@@ -62,6 +89,19 @@ export function SettingsPage({
       <SettingsGroup title="안내">
         <SettingsRow label="사용 안내" onClick={onGuide} />
         <SettingsRow label="패치노트" onClick={() => setPanel('patches')} />
+        <SettingsRow
+          label="새 버전으로 새로고침"
+          detail={
+            buildLabel ? (
+              <span className="block">
+                지금 버전: {buildLabel}
+                {newerBuild ? <span className="mt-0.5 block font-medium text-x">새 버전이 있어용!</span> : null}
+                {refreshing ? <span className="mt-0.5 block">불러오는 중</span> : null}
+              </span>
+            ) : null
+          }
+          onClick={() => void refreshBuild()}
+        />
         <SettingsRow label="이거 수정해 주세요!" onClick={() => setPanel('board')} />
       </SettingsGroup>
       <SettingsGroup title="계정">
@@ -106,7 +146,7 @@ function SettingsRow({
   onClick,
 }: {
   label: string
-  detail?: string
+  detail?: ReactNode
   danger?: boolean
   onClick: () => void
 }) {

@@ -12,6 +12,8 @@ interface ImportMetaEnv {
   readonly VITE_DEMO?: string
 }
 
+declare const __APP_BUILD_TIME__: string
+
 interface ImportMeta {
   readonly env: ImportMetaEnv
 }
