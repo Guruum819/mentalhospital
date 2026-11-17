@@ -35,7 +35,7 @@ export function SettingsPage({
         <SettingsRow label="사용 안내" onClick={onGuide} />
         <SettingsRow label="책 비우기" detail="프로필은 두고 책만 지워용" onClick={onClearBooks} />
       </div>
-      <p className="px-4 py-6 text-center text-xs text-muted-foreground">모임은 10명까지지용.</p>
+      <p className="px-4 py-6 text-center text-xs text-muted-foreground">모임은 10명까지예용.</p>
     </div>
   )
 }

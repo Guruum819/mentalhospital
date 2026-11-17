@@ -55,7 +55,7 @@ export function AvatarEditor({
       setZoom(1)
       setOffset({ x: 0, y: 0 })
     } catch {
-      toast.error('이 사진은 못 열겠당. 다른 사진으로 해줘용.')
+      toast.error('이 사진은 열 수 없어용. 다른 사진을 골라 주세용.')
     }
   }
 
@@ -63,7 +63,7 @@ export function AvatarEditor({
     if (!image) return
     const url = cropAvatar(image, offset, zoom)
     if (!url) {
-      toast.error('사진을 못 잘랐당.')
+      toast.error('사진을 자르지 못했어용.')
       return
     }
     onChange(url)

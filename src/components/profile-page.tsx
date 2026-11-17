@@ -48,7 +48,7 @@ export function ProfilePage({ me, onBack, onEdit }: { me: Friend; onBack: () => 
                 <div className="min-w-0">
                   <p className="text-[15px] font-bold">{me.name}</p>
                   <StarRating value={review.rating} readOnly size="sm" />
-                  <p className="text-[15px] text-x">{book?.title ?? '모르는 책용'}</p>
+                  <p className="text-[15px] text-x">{book?.title ?? '알 수 없는 책'}</p>
                   <p className="mt-1 text-[15px] leading-snug whitespace-pre-wrap">{review.text}</p>
                 </div>
               </li>

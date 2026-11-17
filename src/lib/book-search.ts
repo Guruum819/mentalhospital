@@ -15,7 +15,7 @@ export type SearchOutcome = {
 
 const MAX_HITS = 8
 const HANGUL = /[가-힣]/
-const QUOTA_WARNING = '검색 한도에 걸렸어용 ㅠ 직접 입력해줘용'
+const QUOTA_WARNING = '검색 한도에 걸렸어용. 직접 입력해 주세용'
 
 export function stripHtml(value: string): string {
   return value

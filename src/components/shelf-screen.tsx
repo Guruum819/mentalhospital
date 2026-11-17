@@ -55,7 +55,7 @@ export function ShelfScreen() {
     return (
       <main className="grid min-h-dvh place-items-center px-6 text-center">
         <div>
-          <p className="text-xl font-bold">서재 여는 중용</p>
+          <p className="text-xl font-bold">서재를 여는 중</p>
         </div>
       </main>
     )
@@ -65,7 +65,7 @@ export function ShelfScreen() {
     return (
       <main className="grid min-h-dvh place-items-center px-6 text-center">
         <div className="max-w-sm">
-          <p className="text-xl font-bold">서재를 못 열었당</p>
+          <p className="text-xl font-bold">서재를 열지 못했어용</p>
           <p className="mt-2 text-sm text-muted-foreground">{shelf.error}</p>
           <Button type="button" className="mt-4 h-12 px-5 text-base" onClick={() => window.location.reload()}>
             다시 시도
@@ -205,14 +205,14 @@ export function ShelfScreen() {
       </header>
       {shelf.mode === 'demo' ? (
         <p className="border-b border-border px-4 py-2 text-[13px] text-muted-foreground">
-          이 브라우저 데모당. 다른 폰이랑 맞추려면 Firebase를 연결해줘용.
+          이 브라우저 데모예용. 다른 폰이랑 맞추려면 Firebase를 연결해 주세용.
         </p>
       ) : null}
       {shelf.error ? (
         <p className="border-b border-border px-4 py-2 text-sm text-destructive">{shelf.error}</p>
       ) : null}
       <p className="border-b border-border px-4 py-2 text-[13px] text-muted-foreground">
-        이름 누르면 읽음용 · 책 {stats.bookCount}권 · 친구 {stats.friendCount}명
+        이름을 누르면 읽음 · 책 {stats.bookCount}권 · 친구 {stats.friendCount}명
         {stats.totalCells > 0 ? ` · ${stats.readCells}/${stats.totalCells}` : ''}
       </p>
       <div className="flex gap-2 overflow-x-auto border-b border-border px-4 py-2">
@@ -231,7 +231,7 @@ export function ShelfScreen() {
         {shelf.data.books.length === 0 ? (
           <div className="px-8 py-16 text-center">
             <p className="text-xl font-bold">아직 책이 없어용</p>
-            <p className="mt-1 text-[15px] text-muted-foreground">오른쪽 아래 + 로 책을 올려줘용.</p>
+            <p className="mt-1 text-[15px] text-muted-foreground">오른쪽 아래 + 로 책을 올려 주세용.</p>
           </div>
         ) : (
           shelf.data.books.map((book) => (
@@ -268,18 +268,18 @@ export function ShelfScreen() {
 }
 
 function confirmTitle(confirm: Confirm) {
-  if (confirm?.kind === 'delete-friend') return `${confirm.friend.name} 님을 정말 뺄 거양?`
-  if (confirm?.kind === 'delete-book') return `「${confirm.book.title}」 정말 지울 거양?`
-  if (confirm?.kind === 'restore') return '처음 구성으로 되돌릴 거양?'
-  if (confirm?.kind === 'clear') return '서재를 정말 비울 거양?'
+  if (confirm?.kind === 'delete-friend') return `${confirm.friend.name} 님을 정말 뺄거예용?`
+  if (confirm?.kind === 'delete-book') return `「${confirm.book.title}」 정말 지울거예용?`
+  if (confirm?.kind === 'restore') return '처음 구성으로 되돌릴거예용?'
+  if (confirm?.kind === 'clear') return '서재를 정말 비울거예용?'
   return ''
 }
 
 function confirmText(confirm: Confirm) {
   if (confirm?.kind === 'delete-friend') return '읽음이랑 읽는 중, 한줄평이 사라지고 색은 다시 고를 수 있어용.'
   if (confirm?.kind === 'delete-book') return '읽음이랑 읽는 중, 한줄평도 같이 사라져용.'
-  if (confirm?.kind === 'restore') return '책 목록만 비울 거당. 프로필은 그대로야용.'
-  if (confirm?.kind === 'clear') return '책이랑 한줄평만 지울 거당. 프로필은 그대로야용.'
+  if (confirm?.kind === 'restore') return '책 목록만 비울 거예용. 프로필은 그대로예용.'
+  if (confirm?.kind === 'clear') return '책이랑 한줄평만 지울 거예용. 프로필은 그대로예용.'
   return ''
 }
 
@@ -322,7 +322,7 @@ function LockScreen() {
     <main className="grid min-h-dvh place-items-center px-5">
       <form onSubmit={onSubmit} className="w-full max-w-sm">
         <h1 className="text-[28px] font-extrabold tracking-tight">교환독서</h1>
-        <p className="mt-1 text-sm text-muted-foreground">친구한테 받은 암호를 넣어줘용.</p>
+        <p className="mt-1 text-sm text-muted-foreground">친구들에게 받은 암호를 입력해 주세용.</p>
         <Label htmlFor="lock-pass" className="mt-4">암호</Label>
         <Input
           id="lock-pass"
@@ -336,7 +336,7 @@ function LockScreen() {
         {wrong ? <p className="mt-2 text-sm text-destructive">암호가 안 맞아용.</p> : null}
         <div className="mt-3 flex items-center gap-2">
           <Checkbox id="remember" checked={remember} onCheckedChange={(value) => setRemember(value === true)} />
-          <Label htmlFor="remember">이 폰에 기억할래용</Label>
+          <Label htmlFor="remember">이 기기에 기억하기</Label>
         </div>
         <Button type="submit" className="mt-4 h-12 w-full text-base" disabled={pending}>
           들어가기
@@ -358,7 +358,7 @@ function PasscodeDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (
   async function save(event: FormEvent) {
     event.preventDefault()
     if (next.length < 4) {
-      setMessage('암호는 네 글자 이상으로 해줘용.')
+      setMessage('암호는 네 글자 이상으로 해 주세용.')
       return
     }
     if (next !== again) {
@@ -377,7 +377,7 @@ function PasscodeDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (
         <form onSubmit={save} className="grid gap-3" key={String(open)}>
           <DialogHeader>
             <DialogTitle>그룹 암호</DialogTitle>
-            <DialogDescription>링크 연 사람한테 한 번 더 물어보는 잠금이지용. 책을 암호화하진 않아용.</DialogDescription>
+            <DialogDescription>링크를 연 사람에게 한 번 더 묻는 잠금이에용. 책을 암호화하지는 않아용.</DialogDescription>
           </DialogHeader>
           {hasPasscode ? (
             <Input type="password" value={current} onChange={(event) => setCurrent(event.target.value)} placeholder="지금 암호" className="h-12 text-base" autoComplete="current-password" />
@@ -411,15 +411,15 @@ function GuideDialog({ open, onOpenChange, demo }: { open: boolean; onOpenChange
       <DialogContent>
         <DialogHeader>
           <DialogTitle>이렇게 써용</DialogTitle>
-          <DialogDescription>친구끼리만 보는 서재지용.</DialogDescription>
+          <DialogDescription>친구끼리만 보는 서재예용.</DialogDescription>
         </DialogHeader>
         <ul className="space-y-2 text-sm leading-relaxed">
-          <li>이름 누르면 그 친구가 읽은 거당. 다시 누르면 빠져용.</li>
-          <li>읽는 중은 아래 버튼에서 고르고, 해제는 한 번이면 돼용. 다 읽음으로 찍으면 읽는 중은 알아서 빠져용.</li>
-          <li>책 추가할 때 제목을 찾으면 표지랑 저자가 채워져용. 없으면 직접 넣어줘용.</li>
-          <li>다른 폰에선 이름이랑 생일로 들어와용. 같은 이름이랑 생일은 하나만 돼용.</li>
-          <li>모임은 10명까지지용.</li>
-          {demo ? <li>지금은 이 브라우저 안에서만 저장돼용. 다른 폰이랑 맞추는 법은 README에 있어용.</li> : <li>바꾼 내용은 다른 사람 화면에도 바로 나와용.</li>}
+          <li>이름 칸을 누르면 그 친구가 읽은 거예용. 다시 누르면 빠져용.</li>
+          <li>읽는 중은 아래 버튼에서 고르고, 해제는 한 번이면 돼용. 다 읽음으로 체크하면 읽는 중은 자동으로 빠져용.</li>
+          <li>책을 추가할 때 제목을 검색하면 표지와 저자가 채워져용. 없으면 직접 입력해 주세용.</li>
+          <li>다른 기기에서는 이름이랑 생일로 로그인할 수 있어용. 같은 이름이랑 생일은 하나만 돼용.</li>
+          <li>모임은 10명까지예용.</li>
+          {demo ? <li>지금은 이 브라우저 안에서만 저장돼용. 다른 폰이랑 맞추는 방법은 README에 있어용.</li> : <li>바꾼 내용은 다른 사람 화면에도 바로 나와용.</li>}
         </ul>
       </DialogContent>
     </Dialog>

@@ -159,7 +159,7 @@ export function ShelfProvider({ children }: { children: ReactNode }) {
         const shelf = dataRef.current
         if (shelf.passcodeHash) {
           if (!current || !shelf.passcodeSalt) {
-            toast.error('지금 암호를 넣어줘용.')
+            toast.error('지금 암호를 입력해 주세용.')
             return false
           }
           const currentHash = await hashPasscode(current, shelf.passcodeSalt)
@@ -185,36 +185,36 @@ export function ShelfProvider({ children }: { children: ReactNode }) {
           await repo.replaceShelf({ ...dataRef.current, passcodeSalt: salt, passcodeHash: hash })
         })
         setUnlockTick((tick) => tick + 1)
-        if (ok) toast.success('암호 저장했당!')
+        if (ok) toast.success('암호를 저장했어용.')
         return ok
       },
       async addFriend(name, color, photo, birthday) {
         const clean = cleanText(name, MAX_NAME)
         const born = cleanBirthday(birthday)
         if (!clean) {
-          toast.error('이름을 넣어줘용.')
+          toast.error('이름을 입력해 주세용.')
           return null
         }
         if (!born) {
-          toast.error('생일을 골라줘용.')
+          toast.error('생일을 골라 주세용.')
           return null
         }
         const shelf = shownNow()
         if (shelf.friends.length >= PALETTE.length) {
-          toast.error('모임은 10명까지지용. 프로필을 지우면 빈자리랑 색을 다시 쓸 수 있어용.')
+          toast.error('모임은 10명까지예용. 프로필을 지우면 빈자리와 그 색을 다시 쓸 수 있어용.')
           return null
         }
         if (sameIdentity(shelf.friends, clean, born)) {
-          toast.error('같은 이름이랑 생일이 이미 있어용. 로그인에서 들어와줘용.')
+          toast.error('같은 이름과 생일이 이미 있어용. 로그인에서 들어가 주세용.')
           return null
         }
         if (colorTaken(shelf.friends, color)) {
-          toast.error('그 색은 다른 친구가 쓰는 중용.')
+          toast.error('그 색은 다른 친구가 쓰고 있어용.')
           return null
         }
         const storedPhoto = cleanPhoto(photo)
         if (photo && !storedPhoto) {
-          toast.error('사진이 너무 커용. 조금 더 작게 잘라줘용.')
+          toast.error('사진이 너무 커용. 조금 더 작게 잘라 주세용.')
           return null
         }
         const friend: Friend = {
@@ -232,27 +232,27 @@ export function ShelfProvider({ children }: { children: ReactNode }) {
         const clean = cleanText(name, MAX_NAME)
         const born = cleanBirthday(birthday)
         if (!clean) {
-          toast.error('이름을 넣어줘용.')
+          toast.error('이름을 입력해 주세용.')
           return false
         }
         if (!born) {
-          toast.error('생일을 골라줘용.')
+          toast.error('생일을 골라 주세용.')
           return false
         }
         const shelf = shownNow()
         const current = shelf.friends.find((friend) => friend.id === id)
         if (!current) return false
         if (sameIdentity(shelf.friends, clean, born, id)) {
-          toast.error('같은 이름이랑 생일이 이미 있어용.')
+          toast.error('같은 이름과 생일이 이미 있어용.')
           return false
         }
         if (colorTaken(shelf.friends, color, id)) {
-          toast.error('그 색은 다른 친구가 쓰는 중용.')
+          toast.error('그 색은 다른 친구가 쓰고 있어용.')
           return false
         }
         const storedPhoto = cleanPhoto(photo)
         if (photo && !storedPhoto) {
-          toast.error('사진이 너무 커용. 조금 더 작게 잘라줘용.')
+          toast.error('사진이 너무 커용. 조금 더 작게 잘라 주세용.')
           return false
         }
         return guard(() => repo.saveFriend({ ...current, name: clean, color, photo: storedPhoto, birthday: born }))
@@ -264,11 +264,11 @@ export function ShelfProvider({ children }: { children: ReactNode }) {
         const clean = cleanReview(text)
         const stars = snapRating(rating)
         if (!clean) {
-          toast.error('한줄평을 넣어줘용.')
+          toast.error('한줄평을 입력해 주세용.')
           return false
         }
         if (stars === null) {
-          toast.error('별점은 0에서 5까지, 0.5 단위로 골라줘용.')
+          toast.error('별점은 0에서 5까지, 0.5 단위로 골라 주세용.')
           return false
         }
         const shelf = shownNow()
@@ -292,12 +292,12 @@ export function ShelfProvider({ children }: { children: ReactNode }) {
       async addBook(input) {
         const title = cleanText(input.title, MAX_TITLE)
         if (!title) {
-          toast.error('책 제목을 넣어줘용.')
+          toast.error('책 제목을 입력해 주세용.')
           return false
         }
         const shelf = shownNow()
         if (shelf.books.length >= MAX_BOOKS) {
-          toast.error(`책은 ${MAX_BOOKS}권까지만 올릴 수 있어용.`)
+          toast.error(`책은 ${MAX_BOOKS}권까지 올릴 수 있어용.`)
           return false
         }
         if (!shelf.friends.some((friend) => friend.id === input.buyerId)) {
@@ -313,13 +313,13 @@ export function ShelfProvider({ children }: { children: ReactNode }) {
           order: nextOrder(shelf.books),
         }
         const ok = await guard(() => repo.saveBook(book))
-        if (ok) toast.success('책 추가했당!')
+        if (ok) toast.success('책 추가했어용')
         return ok
       },
       async updateBook(id, input) {
         const title = cleanText(input.title, MAX_TITLE)
         if (!title) {
-          toast.error('책 제목을 넣어줘용.')
+          toast.error('책 제목을 입력해 주세용.')
           return false
         }
         const shelf = shownNow()
@@ -359,7 +359,7 @@ export function ShelfProvider({ children }: { children: ReactNode }) {
           bump()
           if (change.clearedReading) {
             const name = before.friends.find((friend) => friend.id === friendId)?.name ?? '친구'
-            toast(`${name} 님은 다 읽은 걸로 찍혀서, 읽는 중에서 뺐당!`)
+            toast(`${name} 님은 다 읽은 것으로 체크해서, 읽는 중에서 뺐어용.`)
           }
         } catch (caught) {
           pendingRef.current.reads.delete(key)
@@ -398,6 +398,6 @@ export function ShelfProvider({ children }: { children: ReactNode }) {
 
 export function useShelf() {
   const value = useContext(ShelfContext)
-  if (!value) throw new Error('서재 화면 밖에서 상태를 읽었당.')
+  if (!value) throw new Error('서재 화면 밖에서 상태를 읽었어용.')
   return value
 }

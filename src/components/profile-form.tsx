@@ -91,7 +91,7 @@ export function ProfileForm({
                 key={swatch.id}
                 type="button"
                 disabled={Boolean(owner)}
-                aria-label={owner ? `${swatch.label}, ${owner.name}가 쓰는 중용` : swatch.label}
+                aria-label={owner ? `${swatch.label}, ${owner.name} 사용 중` : swatch.label}
                 aria-pressed={selected}
                 className="size-11 rounded-full disabled:opacity-30"
                 style={{
@@ -103,16 +103,16 @@ export function ProfileForm({
             )
           })}
         </div>
-        <p className="text-xs text-muted-foreground">흐린 색은 이미 쓰이는 색이지용. 색은 10개, 사람도 10명까지당.</p>
+        <p className="text-xs text-muted-foreground">흐린 색은 이미 쓰이고 있어용. 색은 10개, 사람도 10명까지예용.</p>
       </div>
       {full ? (
         <p className="rounded-2xl bg-secondary px-3 py-3 text-sm">
-          모임은 10명까지지용. 프로필을 지우면 빈자리랑 색을 다시 쓸 수 있어용.
+          모임은 10명까지예용. 프로필을 지우면 빈자리와 그 색을 다시 쓸 수 있어용.
         </p>
       ) : null}
       <div className="grid gap-2">
         <Button type="submit" className="h-12 text-base" disabled={pending || full}>
-          {pending ? '저장 중용' : submitLabel}
+          {pending ? '저장 중' : submitLabel}
         </Button>
         {onCancel ? (
           <Button type="button" variant="outline" className="h-12 text-base" onClick={onCancel}>
@@ -125,7 +125,7 @@ export function ProfileForm({
           </Button>
         ) : null}
         {!friend ? (
-          <p className="text-center text-xs text-muted-foreground">다른 기기에선 이름이랑 생일로 들어올 수 있어용.</p>
+          <p className="text-center text-xs text-muted-foreground">다른 기기에서는 이름이랑 생일로 로그인할 수 있어용.</p>
         ) : null}
       </div>
     </form>

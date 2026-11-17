@@ -69,7 +69,7 @@ export function BookDialog({
         .catch(() => {
           if (controller.signal.aborted) return
           setHits([])
-          setWarning('검색이 안 됐어용 ㅠ 직접 입력해줘용')
+          setWarning('검색이 안 됐어용. 직접 입력해 주세용')
           setSearching(false)
           setManual(true)
         })
@@ -102,7 +102,7 @@ export function BookDialog({
           <DialogTitle>{book ? '책 수정' : '책 추가'}</DialogTitle>
           <DialogDescription>
             {book
-              ? '제목이랑 저자를 고쳐용. 구매자는 이 책 올린 사람이지용.'
+              ? '제목이랑 저자를 고쳐용. 구매자는 이 책을 올린 사람이에용.'
               : '제목을 입력하면 표지랑 같이 목록이 나와용. 고르면 내가 구매자가 돼용.'}
           </DialogDescription>
         </DialogHeader>
@@ -143,12 +143,12 @@ export function BookDialog({
               </div>
               {searching ? (
                 <p className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Loader2 className="size-4 animate-spin" /> 찾는 중용
+                  <Loader2 className="size-4 animate-spin" /> 찾는 중
                 </p>
               ) : null}
               {warning ? <p className="text-sm text-muted-foreground">{warning}</p> : null}
               {query.trim().length >= 2 && !searching && hits.length === 0 ? (
-                <p className="text-sm text-muted-foreground">맞는 책이 없어용. 직접 입력해줘용.</p>
+                <p className="text-sm text-muted-foreground">맞는 책이 없어용. 직접 입력해 주세용.</p>
               ) : null}
               <div className="space-y-1.5">
                 {hits.map((hit) => (
@@ -166,7 +166,7 @@ export function BookDialog({
                     )}
                     <span className="min-w-0">
                       <span className="block truncate font-medium">{hit.title}</span>
-                      <span className="block truncate text-sm text-muted-foreground">{hit.author || '저자 모름용'}</span>
+                      <span className="block truncate text-sm text-muted-foreground">{hit.author || '저자 미상'}</span>
                     </span>
                   </button>
                 ))}

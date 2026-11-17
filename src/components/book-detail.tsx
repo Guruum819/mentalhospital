@@ -57,7 +57,7 @@ export function BookDetail({
         </div>
         <form onSubmit={onSubmit} className="border-b border-border px-4 py-3">
           <StarRating value={rating} onChange={setRating} />
-          {rating === null ? <p className="mt-1 text-[13px] text-muted-foreground">별을 누르거나 숫자를 넣어줘용. 0.5 단위지용.</p> : null}
+          {rating === null ? <p className="mt-1 text-[13px] text-muted-foreground">별을 누르거나 숫자를 입력해 주세용. 0.5 단위예용.</p> : null}
           <div className="mt-3 flex gap-3">
             <Avatar name={me.name} photo={me.photo} size={40} />
             <div className="min-w-0 flex-1">
@@ -67,7 +67,7 @@ export function BookDetail({
                 onChange={(event) => setText(event.target.value)}
                 maxLength={MAX_REVIEW}
                 rows={3}
-                placeholder="짧게 남겨줘용"
+                placeholder="짧게 남겨 주세용"
                 className="mt-1 w-full resize-none bg-transparent text-[17px] outline-none placeholder:text-muted-foreground"
               />
             </div>
@@ -92,7 +92,7 @@ export function BookDetail({
                   <Avatar name={author?.name ?? '?'} photo={author?.photo ?? null} size={40} />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-baseline gap-2">
-                      <p className="truncate text-[15px] font-bold">{author?.name ?? '모름용'}</p>
+                      <p className="truncate text-[15px] font-bold">{author?.name ?? '알 수 없어용'}</p>
                       <time className="shrink-0 text-[13px] text-muted-foreground">
                         {new Intl.DateTimeFormat('ko', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }).format(review.createdAt)}
                       </time>

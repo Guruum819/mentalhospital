@@ -67,7 +67,7 @@ function createFirebaseRepo(): ShelfRepository {
             if (!seeding) {
               seeding = true
               write(starterFirebaseUpdate())
-                .catch((error: unknown) => onError(error instanceof Error ? error.message : '시작 데이터를 못 썼당.'))
+                .catch((error: unknown) => onError(error instanceof Error ? error.message : '시작 데이터를 쓰지 못했어용.'))
                 .finally(() => {
                   seeding = false
                 })

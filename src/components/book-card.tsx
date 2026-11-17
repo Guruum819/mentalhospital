@@ -72,7 +72,7 @@ export function BookCard({
               수정
             </button>
           </div>
-          <p className="truncate text-[15px] text-muted-foreground">{book.author || '저자 모름용'}</p>
+          <p className="truncate text-[15px] text-muted-foreground">{book.author || '저자 미상'}</p>
           {average !== null ? (
             <div className="mt-1">
               <StarRating value={average} readOnly size="sm" />
@@ -105,7 +105,7 @@ export function BookCard({
               type="button"
               role="checkbox"
               aria-checked={checked}
-              aria-label={`${friend.name}, ${book.title}, ${checked ? '읽음. 다시 누르면 빠져용' : '아직 안 읽었당'}`}
+              aria-label={`${friend.name}, ${book.title}, ${checked ? '읽음. 다시 누르면 빠져용' : '아직 안 읽었어용'}`}
               data-testid={`read-${book.id}-${friend.id}`}
               onClick={() => void shelf.toggleRead(book.id, friend.id)}
               className="inline-flex h-11 min-w-11 items-center justify-center gap-1 rounded-full px-3 text-[15px] font-bold"
@@ -159,7 +159,7 @@ export function BookCard({
         )}
         {picking ? (
           <div className="mt-2 border-t border-border pt-2">
-            <p className="pb-2 text-[13px] text-muted-foreground">누가 읽고 있는지 눌러줘용.</p>
+            <p className="pb-2 text-[13px] text-muted-foreground">누가 읽고 있는지 눌러 주세용.</p>
             <div className="flex flex-wrap gap-2">
               {friends.map((friend) => {
                 const active = friend.id === readerId
