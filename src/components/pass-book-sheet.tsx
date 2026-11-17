@@ -1,7 +1,10 @@
+import { useState } from 'react'
 import { passTargets, resolvedHolderId } from '@/lib/model'
+import { readWho } from '@/lib/identity'
 import { useShelf } from '@/lib/store'
 import type { Book } from '@/lib/types'
 import { Avatar } from '@/components/avatar-editor'
+import { ConfirmDialog } from '@/components/confirm-dialog'
 import {
   Dialog,
   DialogContent,
@@ -20,16 +23,26 @@ export function PassBookSheet({
   onOpenChange: (open: boolean) => void
 }) {
   const shelf = useShelf()
+  const [asking, setAsking] = useState<string | null>(null)
+  const [sending, setSending] = useState(false)
   const current = book
   const members = shelf.data.friends.filter((friend) => friend.approved)
   const holderId = current ? resolvedHolderId(current, new Set(members.map((friend) => friend.id))) : null
   const { queued, rest } = passTargets(members, current ? shelf.data.queues[current.id] ?? [] : [], holderId)
   const empty = queued.length === 0 && rest.length === 0
 
-  async function pick(id: string) {
-    if (!current) return
-    const ok = await shelf.passBook(current.id, id)
-    if (ok) onOpenChange(false)
+  const askingFriend = members.find((friend) => friend.id === asking) ?? null
+
+  async function send() {
+    if (!current || !asking || sending) return
+    setSending(true)
+    const mine = holderId !== null && holderId === readWho()
+    const ok = mine ? await shelf.offerBook(current.id, asking) : await shelf.passBook(current.id, asking)
+    setSending(false)
+    if (ok) {
+      setAsking(null)
+      onOpenChange(false)
+    }
   }
 
   return (
@@ -46,17 +59,28 @@ export function PassBookSheet({
             {queued.length > 0 ? (
               <section>
                 <h3 className="px-1 pb-1 text-[13px] font-medium text-muted-foreground">다음에 읽을 순서</h3>
-                <MemberList ids={queued.map((friend) => friend.id)} onPick={(id) => void pick(id)} />
+                <MemberList ids={queued.map((friend) => friend.id)} onPick={setAsking} />
               </section>
             ) : null}
             {rest.length > 0 ? (
               <section>
                 <h3 className="px-1 pb-1 text-[13px] font-medium text-muted-foreground">다른 멤버</h3>
-                <MemberList ids={rest.map((friend) => friend.id)} onPick={(id) => void pick(id)} />
+                <MemberList ids={rest.map((friend) => friend.id)} onPick={setAsking} />
               </section>
             ) : null}
           </div>
         )}
+        <ConfirmDialog
+          open={askingFriend !== null}
+          title={askingFriend ? `${askingFriend.name}님한테 보낼까용?` : ''}
+          description="수락해야 책이 넘어가용."
+          confirmLabel="보내기"
+          pending={sending}
+          onOpenChange={(open) => {
+            if (!open) setAsking(null)
+          }}
+          onConfirm={() => void send()}
+        />
       </DialogContent>
     </Dialog>
   )

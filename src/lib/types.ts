@@ -49,7 +49,7 @@ export type AdminLock = {
 /** One member's inbox item. Stored under that member in Realtime Database. */
 export type Notice = {
   id: string
-  kind: 'like' | 'reply' | 'nudge' | 'request' | 'handoff'
+  kind: 'like' | 'reply' | 'nudge' | 'request' | 'handoff' | 'offer' | 'took' | 'decline'
   actorId: string
   /** Empty when this opens the request board instead of a book. */
   bookId: string
@@ -84,6 +84,13 @@ export type Handoff = {
   at: number
 }
 
+/** One open hand-off ask per book. The holder does not change until it is accepted. */
+export type Transfer = {
+  fromId: string
+  toId: string
+  at: number
+}
+
 export type ReadMap = Record<string, Record<string, true>>
 
 /** bookId → friend ids, oldest first. */
@@ -106,6 +113,8 @@ export type ShelfData = {
   nudgeSends: Record<string, number[]>
   /** bookId → newest handoff first. */
   handoffs: Record<string, Handoff[]>
+  /** bookId → the one pending hand-off, if someone has been asked. */
+  transfers: Record<string, Transfer>
   initialized: boolean
 }
 

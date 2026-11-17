@@ -57,6 +57,10 @@ type ShelfApi = {
   updateBook: (id: string, input: BookInput) => Promise<boolean>
   removeBook: (id: string) => Promise<boolean>
   passBook: (bookId: string, toId: string) => Promise<boolean>
+  offerBook: (bookId: string, toId: string) => Promise<boolean>
+  cancelOffer: (bookId: string) => Promise<boolean>
+  acceptOffer: (bookId: string) => Promise<boolean>
+  declineOffer: (bookId: string) => Promise<boolean>
   toggleRead: (bookId: string, friendId: string) => Promise<void>
   setReading: (bookId: string, friendId: string | null) => Promise<void>
   markFinished: (bookId: string) => Promise<void>
@@ -494,6 +498,47 @@ export function ShelfProvider({ children }: { children: ReactNode }) {
         const ok = await guard(() => repo.passBook(bookId, toId, event, actorId))
         if (ok) toast.success(`${to?.name ?? '친구'}님한테 넘겼어용!`)
         return ok
+      },
+      async offerBook(bookId, toId) {
+        const shelf = shownNow()
+        const book = shelf.books.find((item) => item.id === bookId)
+        const members = shelf.friends.filter((friend) => friend.approved)
+        const approved = new Set(members.map((friend) => friend.id))
+        const holder = book ? resolvedHolderId(book, approved) : null
+        const me = readWho()
+        if (!book || !me || holder !== me || !approved.has(toId) || toId === me) {
+          toast.error('지금 갖고 있는 사람만 넘길 수 있어용.')
+          return false
+        }
+        if (shelf.transfers[bookId]) {
+          toast('이미 넘기는 중이에용')
+          return false
+        }
+        const to = members.find((friend) => friend.id === toId)
+        const ok = await guard(() => repo.offerBook(bookId, me, toId, Date.now()))
+        if (ok) toast.success(`${to?.name ?? '친구'}님한테 보냈어용`)
+        return ok
+      },
+      async cancelOffer(bookId) {
+        const me = readWho()
+        const transfer = shownNow().transfers[bookId]
+        if (!me || !transfer || transfer.fromId !== me) return false
+        const ok = await guard(() => repo.cancelOffer(bookId, me))
+        if (ok) toast('넘기기를 취소했어용.')
+        return ok
+      },
+      async acceptOffer(bookId) {
+        const me = readWho()
+        const transfer = shownNow().transfers[bookId]
+        if (!me || !transfer || transfer.toId !== me) return false
+        const event = { id: newId('handoff'), fromId: transfer.fromId, toId: me, at: Date.now() }
+        return guard(() => repo.acceptOffer(bookId, me, event))
+      },
+      async declineOffer(bookId) {
+        const me = readWho()
+        const transfer = shownNow().transfers[bookId]
+        if (!me || !transfer || transfer.toId !== me) return false
+        return guard(() => repo.declineOffer(bookId, me, Date.now(), newId('decline')))
       },
       async toggleRead(bookId, friendId) {
         if (friendId !== readWho()) {

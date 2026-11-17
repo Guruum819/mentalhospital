@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { ChevronLeft } from 'lucide-react'
-import { handoffAlertLine, likeAlertLine, nudgeAlertLine, replyAlertLine, requestAlertLine } from '@/lib/model'
+import { readWho } from '@/lib/identity'
+import { declineAlertLine, handoffAlertLine, likeAlertLine, nudgeAlertLine, offerAlertLine, replyAlertLine, requestAlertLine, tookAlertLine } from '@/lib/model'
 import { useShelf } from '@/lib/store'
 import type { Friend, Notice } from '@/lib/types'
 import { Avatar } from '@/components/avatar-editor'
@@ -70,31 +71,51 @@ function NotificationRow({ notice, onOpen }: { notice: Notice; onOpen: () => voi
   const actor = notice.actorId === 'admin' || request ? null : shelf.data.friends.find((friend) => friend.id === notice.actorId)
   const name = notice.actorId === 'admin' || request ? '관리자' : (actor?.name ?? '친구')
   const book = shelf.data.books.find((item) => item.id === notice.bookId)
+  const title = book?.title ?? '책'
   const line = request
     ? requestAlertLine(notice.preview ?? '')
-    : notice.kind === 'handoff'
-      ? handoffAlertLine(name, book?.title ?? '책')
-      : notice.kind === 'like'
-        ? likeAlertLine(name)
-        : notice.kind === 'reply'
-          ? replyAlertLine(name, notice.preview ?? '')
-          : nudgeAlertLine(name, book?.title ?? '책')
+    : notice.kind === 'offer'
+      ? offerAlertLine(name, title)
+      : notice.kind === 'took'
+        ? tookAlertLine(name, title)
+        : notice.kind === 'decline'
+          ? declineAlertLine(name)
+          : notice.kind === 'handoff'
+            ? handoffAlertLine(name, title)
+            : notice.kind === 'like'
+              ? likeAlertLine(name)
+              : notice.kind === 'reply'
+                ? replyAlertLine(name, notice.preview ?? '')
+                : nudgeAlertLine(name, title)
+  const me = readWho()
+  const transfer = shelf.data.transfers[notice.bookId]
+  const canAnswer = notice.kind === 'offer' && transfer?.toId === me
   return (
-    <button
-      type="button"
+    <div
       className="flex w-full items-start gap-3 border-b border-border px-4 py-3 text-left"
       data-testid="notification-row"
       data-read={notice.read ? 'true' : 'false'}
-      onClick={onOpen}
     >
+      <button type="button" className="flex min-w-0 flex-1 items-start gap-3 text-left" onClick={onOpen}>
       <span className={`mt-3 size-2 shrink-0 rounded-full ${notice.read ? 'bg-transparent' : 'bg-x'}`} />
       <Avatar name={name} photo={actor?.photo ?? null} size={36} />
       <span className="min-w-0 flex-1">
         <span className="block text-[15px] leading-snug">{line}</span>
-        {notice.kind !== 'nudge' && notice.kind !== 'request' && notice.kind !== 'handoff' ? (
+        {notice.kind === 'like' || notice.kind === 'reply' ? (
           <span className="mt-0.5 block truncate text-[13px] text-muted-foreground">{book?.title ?? '책을 찾을 수 없어용'}</span>
         ) : null}
       </span>
-    </button>
+      </button>
+      {canAnswer ? (
+        <span className="flex shrink-0 gap-1">
+          <button type="button" data-testid="notice-accept" className="h-11 px-2 text-[15px] font-bold text-x" onClick={() => void shelf.acceptOffer(notice.bookId)}>
+            수락
+          </button>
+          <button type="button" data-testid="notice-decline" className="h-11 px-2 text-[15px] font-bold text-muted-foreground" onClick={() => void shelf.declineOffer(notice.bookId)}>
+            거절
+          </button>
+        </span>
+      ) : null}
+    </div>
   )
 }

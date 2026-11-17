@@ -7,7 +7,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { averageRating, countReads, holderLine, nudgeAllowanceLine, nudgesRemaining, resolvedHolderId, visibleFriends } from '@/lib/model'
+import { averageRating, countReads, holderLine, nudgeAllowanceLine, nudgesRemaining, pendingPassLine, resolvedHolderId, visibleFriends } from '@/lib/model'
 import { inkFor, paletteColor } from '@/lib/palette'
 import { useShelf } from '@/lib/store'
 import { toast } from 'sonner'
@@ -102,6 +102,8 @@ export function BookCard({
   const holderId = resolvedHolderId(book, new Set(friends.map((friend) => friend.id)))
   const holder = holderId ? friends.find((friend) => friend.id === holderId) ?? null : null
   const holding = holderId === meId
+  const transfer = shelf.data.transfers[book.id] ?? null
+  const pendingName = transfer ? friends.find((friend) => friend.id === transfer.toId)?.name ?? '친구' : null
   const average = averageRating(shelf.data.reviews.filter((review) => review.bookId === book.id))
 
   return (
@@ -141,6 +143,11 @@ export function BookCard({
               <p data-testid="book-holder" className="mt-0.5 text-[13px] text-muted-foreground">
                 {holderLine(holder?.name ?? null, holding)}
               </p>
+              {transfer ? (
+                <p data-testid="pending-pass" className="mt-0.5 text-[13px] font-medium text-foreground">
+                  {pendingPassLine(pendingName ?? '친구')}
+                </p>
+              ) : null}
             </div>
             {book.buyerId === meId ? (
               <BookMenu
@@ -174,7 +181,7 @@ export function BookCard({
           <p className="text-[13px] text-muted-foreground">
             읽음 {readCount}/{friends.length}
           </p>
-          {holding ? (
+          {holding && !transfer ? (
             <button
               type="button"
               data-testid="pass-book"
@@ -183,7 +190,38 @@ export function BookCard({
             >
               책 넘기기
             </button>
-          ) : shelf.admin ? (
+          ) : null}
+          {transfer && transfer.fromId === meId ? (
+            <button
+              type="button"
+              data-testid="cancel-offer"
+              className="mt-2 h-11 rounded-full px-3 text-[15px] font-bold ring-1 ring-inset ring-foreground/30"
+              onClick={() => void shelf.cancelOffer(book.id)}
+            >
+              취소
+            </button>
+          ) : null}
+          {transfer && transfer.toId === meId ? (
+            <div className="mt-2 flex gap-2">
+              <button
+                type="button"
+                data-testid="accept-offer"
+                className="h-11 rounded-full bg-x px-3 text-[15px] font-bold text-white"
+                onClick={() => void shelf.acceptOffer(book.id)}
+              >
+                수락
+              </button>
+              <button
+                type="button"
+                data-testid="decline-offer"
+                className="h-11 rounded-full px-3 text-[15px] font-bold ring-1 ring-inset ring-foreground/30"
+                onClick={() => void shelf.declineOffer(book.id)}
+              >
+                거절
+              </button>
+            </div>
+          ) : null}
+          {!holding && !transfer && shelf.admin ? (
             <button
               type="button"
               data-testid="reassign-holder"

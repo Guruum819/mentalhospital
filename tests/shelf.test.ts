@@ -12,7 +12,7 @@ import {
   titleForHangulQuery,
   type BookHit,
 } from '../src/lib/book-search.ts'
-import { cleanBirthday, cleanCover, cleanReview, dropMemberNotifications, findProfile, fromFirebase, fromPersisted, handoffAlertLine, holderAfterRemoval, holderLine, isSafeId, likeAlertLine, passTargets, resolvedHolderId, likeNotice, likeNoticeId, markedFinished, newId, nextNudgeSends, nudgeAlertLine, nudgeAllowanceLine, nudgeLine, nudgeNotice, nudgesRemaining, readNotifications, replyAlertLine, replyNotice, requestAlertLine, requestNotice, sameIdentity, seoulDay, sortedBooks, sortedComments, toggledRead, toPersisted, withNotification, withoutNotification } from '../src/lib/model.ts'
+import { cleanBirthday, cleanCover, cleanReview, dropMemberNotifications, findProfile, fromFirebase, fromPersisted, handoffAlertLine, holderAfterRemoval, holderLine, offerAlertLine, pendingPassLine, tookAlertLine, declineAlertLine, isSafeId, likeAlertLine, passTargets, resolvedHolderId, likeNotice, likeNoticeId, markedFinished, newId, nextNudgeSends, nudgeAlertLine, nudgeAllowanceLine, nudgeLine, nudgeNotice, nudgesRemaining, readNotifications, replyAlertLine, replyNotice, requestAlertLine, requestNotice, sameIdentity, seoulDay, sortedBooks, sortedComments, toggledRead, toPersisted, withNotification, withoutNotification } from '../src/lib/model.ts'
 import { formatPatchDate } from '../src/lib/patch-notes.ts'
 import { PALETTE } from '../src/lib/palette.ts'
 import { starterShelf } from '../src/lib/seed.ts'
@@ -314,6 +314,10 @@ test('a book stays with its buyer until someone passes it on', () => {
   assert.deepEqual(targets.queued.map((friend) => friend.id), ['friend-other'])
   assert.deepEqual(targets.rest.map((friend) => friend.id), ['friend-minsu'])
   assert.equal(handoffAlertLine('채령', '작별하지 않는다'), '채령님이 『작별하지 않는다』을 넘겨줬어용!')
+  assert.equal(offerAlertLine('채령', '작별하지 않는다'), '채령님이 『작별하지 않는다』을 넘겨주려고 해용!')
+  assert.equal(tookAlertLine('민수', '작별하지 않는다'), '민수님이 『작별하지 않는다』을 받았어용!')
+  assert.equal(declineAlertLine('민수'), '민수님이 거절했어용')
+  assert.equal(pendingPassLine('민수'), '민수님한테 넘기는 중이에용')
   const parsed = fromFirebase({
     friends: { 'friend-chaeryeong': { name: '채령', order: 1, color: 'indigo', birthday: '1994-04-04' } },
     books: { 'book-1': { ...book, holderId: '' } },

@@ -13,6 +13,7 @@ import {
   fromFirebase,
   fromPersisted,
   handoffNotice,
+  offerNoticeId,
   holderAfterRemoval,
   isSafeId,
   likeNotice,
@@ -40,6 +41,10 @@ export interface ShelfRepository {
   deleteFriend: (friendId: string) => Promise<void>
   saveBook: (book: Book) => Promise<void>
   passBook: (bookId: string, toId: string, event: Handoff, actorId: string) => Promise<void>
+  offerBook: (bookId: string, fromId: string, toId: string, at: number) => Promise<void>
+  cancelOffer: (bookId: string, holderId: string) => Promise<void>
+  acceptOffer: (bookId: string, recipientId: string, event: Handoff) => Promise<void>
+  declineOffer: (bookId: string, recipientId: string, at: number, noticeId: string) => Promise<void>
   deleteBook: (bookId: string, reviews?: readonly Review[]) => Promise<void>
   setRead: (bookId: string, friendId: string, read: boolean, clearReading: boolean) => Promise<void>
   setReading: (bookId: string, friendId: string | null) => Promise<void>
@@ -233,6 +238,62 @@ function createFirebaseRepo(): ShelfRepository {
         const nextHolder = holderAfterRemoval(book, friendId, approvedAfter)
         if (nextHolder !== undefined) values[`books/${book.id}/holderId`] = nextHolder
       }
+      for (const [bookId, transfer] of Object.entries(current.transfers)) {
+        if (transfer.fromId !== friendId && transfer.toId !== friendId) continue
+        values[`settings/transfers/${bookId}`] = null
+        values[`friends/${transfer.toId}/notifications/${offerNoticeId(bookId)}`] = null
+      }
+      await write(values)
+    },
+    async offerBook(bookId, fromId, toId, at) {
+      const book = current.books.find((item) => item.id === bookId)
+      if (!book || current.transfers[bookId]) throw new Error('이미 넘기는 중이에용')
+      if (!current.friends.some((friend) => friend.id === toId && friend.approved)) return
+      const values: Record<string, unknown> = {
+        [`settings/transfers/${bookId}`]: { fromId, toId, at },
+      }
+      const built = handoffNotice(fromId, toId, bookId, `offer-${bookId}`, at)
+      if (built) {
+        values[`friends/${toId}/notifications/${offerNoticeId(bookId)}`] = {
+          ...notificationValue({ ...built.notice, id: offerNoticeId(bookId), kind: 'offer' }),
+        }
+      }
+      await write(values)
+    },
+    async cancelOffer(bookId, holderId) {
+      const transfer = current.transfers[bookId]
+      if (!transfer || transfer.fromId !== holderId) return
+      await write({
+        [`settings/transfers/${bookId}`]: null,
+        [`friends/${transfer.toId}/notifications/${offerNoticeId(bookId)}`]: null,
+      })
+    },
+    async acceptOffer(bookId, recipientId, event) {
+      const transfer = current.transfers[bookId]
+      const book = current.books.find((item) => item.id === bookId)
+      if (!transfer || !book || transfer.toId !== recipientId) return
+      const values: Record<string, unknown> = {
+        [`books/${bookId}/holderId`]: recipientId,
+        [`settings/transfers/${bookId}`]: null,
+        [`friends/${recipientId}/notifications/${offerNoticeId(bookId)}`]: null,
+        [`settings/handoffs/${bookId}/${event.id}`]: { fromId: event.fromId ?? '', toId: event.toId, at: event.at },
+      }
+      const told = handoffNotice(recipientId, transfer.fromId, bookId, event.id, event.at)
+      if (told) {
+        values[`friends/${transfer.fromId}/notifications/${told.notice.id}`] = notificationValue({ ...told.notice, kind: 'took' })
+      }
+      await write(values)
+    },
+    async declineOffer(bookId, recipientId, at, noticeId) {
+      const transfer = current.transfers[bookId]
+      const book = current.books.find((item) => item.id === bookId)
+      if (!transfer || !book || transfer.toId !== recipientId) return
+      const told = handoffNotice(recipientId, transfer.fromId, bookId, noticeId, at)
+      const values: Record<string, unknown> = {
+        [`settings/transfers/${bookId}`]: null,
+        [`friends/${recipientId}/notifications/${offerNoticeId(bookId)}`]: null,
+      }
+      if (told) values[`friends/${transfer.fromId}/notifications/${told.notice.id}`] = notificationValue({ ...told.notice, kind: 'decline' })
       await write(values)
     },
     async saveBook(book) {
@@ -268,6 +329,7 @@ function createFirebaseRepo(): ShelfRepository {
         [`settings/nudges/${bookId}`]: null,
         [`settings/queues/${bookId}`]: null,
         [`settings/handoffs/${bookId}`]: null,
+        [`settings/transfers/${bookId}`]: null,
       }
       for (const review of reviews) {
         if (review.bookId === bookId) values[`reviews/${review.id}`] = null
@@ -386,6 +448,7 @@ function createFirebaseRepo(): ShelfRepository {
         'settings/nudges': null,
         'settings/queues': null,
         'settings/handoffs': null,
+        'settings/transfers': null,
       })
     },
   }
@@ -500,6 +563,9 @@ function createDemoRepo(): ShelfRepository {
             )
             return nextHolder === undefined ? book : { ...book, holderId: nextHolder }
           }),
+          transfers: Object.fromEntries(
+            Object.entries(current.transfers).filter(([, transfer]) => transfer.fromId !== friendId && transfer.toId !== friendId),
+          ),
         },
         true,
       )
@@ -529,6 +595,56 @@ function createDemoRepo(): ShelfRepository {
       }
       persist(next, true)
     },
+    async offerBook(bookId, fromId, toId, at) {
+      const book = current.books.find((item) => item.id === bookId)
+      if (!book || current.transfers[bookId]) throw new Error('이미 넘기는 중이에용')
+      if (!current.friends.some((friend) => friend.id === toId && friend.approved)) return
+      const built = handoffNotice(fromId, toId, bookId, `offer-${bookId}`, at)
+      let next: ShelfData = {
+        ...current,
+        transfers: { ...current.transfers, [bookId]: { fromId, toId, at } },
+      }
+      if (built) next = withNotification(next, toId, { ...built.notice, id: offerNoticeId(bookId), kind: 'offer' })
+      persist(next, true)
+    },
+    async cancelOffer(bookId, holderId) {
+      const transfer = current.transfers[bookId]
+      if (!transfer || transfer.fromId !== holderId) return
+      let next: ShelfData = { ...current, transfers: { ...current.transfers } }
+      delete next.transfers[bookId]
+      next = withoutNotification(next, transfer.toId, offerNoticeId(bookId))
+      persist(next, true)
+    },
+    async acceptOffer(bookId, recipientId, event) {
+      const transfer = current.transfers[bookId]
+      const book = current.books.find((item) => item.id === bookId)
+      if (!transfer || !book || transfer.toId !== recipientId) return
+      let next: ShelfData = {
+        ...current,
+        books: current.books.map((item) => (item.id === bookId ? { ...item, holderId: recipientId } : item)),
+        transfers: { ...current.transfers },
+        handoffs: {
+          ...current.handoffs,
+          [bookId]: [event, ...(current.handoffs[bookId] ?? []).filter((item) => item.id !== event.id)],
+        },
+      }
+      delete next.transfers[bookId]
+      next = withoutNotification(next, recipientId, offerNoticeId(bookId))
+      const told = handoffNotice(recipientId, transfer.fromId, bookId, event.id, event.at)
+      if (told) next = withNotification(next, transfer.fromId, { ...told.notice, kind: 'took' })
+      persist(next, true)
+    },
+    async declineOffer(bookId, recipientId, at, noticeId) {
+      const transfer = current.transfers[bookId]
+      const book = current.books.find((item) => item.id === bookId)
+      if (!transfer || !book || transfer.toId !== recipientId) return
+      let next: ShelfData = { ...current, transfers: { ...current.transfers } }
+      delete next.transfers[bookId]
+      next = withoutNotification(next, recipientId, offerNoticeId(bookId))
+      const told = handoffNotice(recipientId, transfer.fromId, bookId, noticeId, at)
+      if (told) next = withNotification(next, transfer.fromId, { ...told.notice, kind: 'decline' })
+      persist(next, true)
+    },
     async deleteBook(bookId, reviews = current.reviews) {
       const reads = { ...current.reads }
       delete reads[bookId]
@@ -540,6 +656,8 @@ function createDemoRepo(): ShelfRepository {
       delete queues[bookId]
       const handoffs = { ...current.handoffs }
       delete handoffs[bookId]
+      const transfers = { ...current.transfers }
+      delete transfers[bookId]
       const dropped = new Set(reviews.filter((review) => review.bookId === bookId).map((review) => review.id))
       persist(
         {
@@ -551,6 +669,7 @@ function createDemoRepo(): ShelfRepository {
           nudges,
           queues,
           handoffs,
+          transfers,
         },
         true,
       )
@@ -686,7 +805,7 @@ function createDemoRepo(): ShelfRepository {
     },
     async clearBooks() {
       persist(
-        { ...current, books: [], reads: {}, reading: {}, reviews: [], nudges: {}, queues: {}, handoffs: {} },
+        { ...current, books: [], reads: {}, reading: {}, reviews: [], nudges: {}, queues: {}, handoffs: {}, transfers: {} },
         true,
       )
     },

@@ -1,5 +1,5 @@
 import { PALETTE } from './palette.ts'
-import type { Book, BookSort, CommentSort, Friend, Handoff, IdQueue, Notice, ReadMap, Review, ShelfData } from './types.ts'
+import type { Book, BookSort, CommentSort, Friend, Handoff, IdQueue, Notice, ReadMap, Review, ShelfData, Transfer } from './types.ts'
 
 export const MAX_NAME = 20
 export const MAX_TITLE = 80
@@ -22,6 +22,7 @@ export function emptyShelf(): ShelfData {
     notifications: {},
     nudgeSends: {},
     handoffs: {},
+    transfers: {},
     initialized: false,
   }
 }
@@ -364,7 +365,14 @@ function parsePosts(raw: unknown): ShelfData['posts'] {
 function parseNotice(id: string, raw: unknown): Notice | null {
   if (!isSafeId(id) || !isRecord(raw)) return null
   const kind =
-    raw.kind === 'like' || raw.kind === 'reply' || raw.kind === 'nudge' || raw.kind === 'request' || raw.kind === 'handoff'
+    raw.kind === 'like' ||
+    raw.kind === 'reply' ||
+    raw.kind === 'nudge' ||
+    raw.kind === 'request' ||
+    raw.kind === 'handoff' ||
+    raw.kind === 'offer' ||
+    raw.kind === 'took' ||
+    raw.kind === 'decline'
       ? raw.kind
       : null
   const actorId = typeof raw.actorId === 'string' ? raw.actorId : ''
@@ -485,6 +493,20 @@ function parseHandoffs(raw: unknown): Record<string, Handoff[]> {
   return parseHandoffMap(raw)
 }
 
+function parseTransfers(raw: unknown): Record<string, Transfer> {
+  if (!isRecord(raw)) return {}
+  const map: Record<string, Transfer> = {}
+  for (const [bookId, value] of Object.entries(raw)) {
+    if (!isSafeId(bookId) || !isRecord(value)) continue
+    const fromId = typeof value.fromId === 'string' ? value.fromId : ''
+    const toId = typeof value.toId === 'string' ? value.toId : ''
+    const at = typeof value.at === 'number' && Number.isFinite(value.at) ? value.at : 0
+    if (!isSafeId(fromId) || !isSafeId(toId)) continue
+    map[bookId] = { fromId, toId, at }
+  }
+  return map
+}
+
 /** Realtime Database keeps each inbox on the member: friends/{id}/notifications. */
 function parseNotificationsUnderFriends(raw: unknown): Record<string, Notice[]> {
   if (!isRecord(raw)) return {}
@@ -535,6 +557,7 @@ export function fromFirebase(raw: unknown): ShelfData {
     notifications: parseNotificationsUnderFriends(friendsRaw),
     nudgeSends: parseNudgeSendsUnderFriends(friendsRaw),
     handoffs: parseHandoffs(settings.handoffs),
+    transfers: parseTransfers(settings.transfers),
     initialized: settings.initialized === true,
   }
 }
@@ -575,6 +598,7 @@ export function fromPersisted(raw: unknown): ShelfData | null {
     notifications: parseNotificationMap(raw.notifications),
     nudgeSends: parseNudgeSendMap(raw.nudgeSends),
     handoffs: parseHandoffMap(raw.handoffs),
+    transfers: parseTransfers(raw.transfers),
     initialized: raw.initialized === true,
   }
 }
@@ -944,6 +968,26 @@ export function handoffNotice(
 
 export function handoffAlertLine(name: string, title: string): string {
   return `${name}님이 『${title}』을 넘겨줬어용!`
+}
+
+export function offerNoticeId(bookId: string): string {
+  return noticeKey('offer', bookId)
+}
+
+export function offerAlertLine(name: string, title: string): string {
+  return `${name}님이 『${title}』을 넘겨주려고 해용!`
+}
+
+export function tookAlertLine(name: string, title: string): string {
+  return `${name}님이 『${title}』을 받았어용!`
+}
+
+export function declineAlertLine(name: string): string {
+  return `${name}님이 거절했어용`
+}
+
+export function pendingPassLine(name: string): string {
+  return `${name}님한테 넘기는 중이에용`
 }
 
 export function holderLine(name: string | null, mine: boolean): string {
