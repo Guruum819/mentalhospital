@@ -18,6 +18,7 @@ import {
   nextOrder,
   sameIdentity,
   snapRating,
+  markedFinished,
   toggledRead,
   withRead,
   withReading,
@@ -55,6 +56,7 @@ type ShelfApi = {
   removeBook: (id: string) => Promise<boolean>
   toggleRead: (bookId: string, friendId: string) => Promise<void>
   setReading: (bookId: string, friendId: string | null) => Promise<void>
+  markFinished: (bookId: string) => Promise<void>
   nudge: (bookId: string) => Promise<void>
   dismissNudges: (bookId: string) => Promise<void>
   toggleQueue: (bookId: string) => Promise<void>
@@ -483,6 +485,30 @@ export function ShelfProvider({ children }: { children: ReactNode }) {
           bump()
         } catch (caught) {
           pendingRef.current.reading.delete(bookId)
+          bump()
+          toast.error(toKoreanError(caught))
+        }
+      },
+      async markFinished(bookId) {
+        const me = readWho()
+        if (!me) return
+        const before = shownNow()
+        const change = markedFinished(before, bookId, me)
+        const key = cellKey(bookId, me)
+        pendingRef.current.reads.set(key, true)
+        if (change.clearedReading) pendingRef.current.reading.set(bookId, null)
+        bump()
+        try {
+          await repo.setRead(bookId, me, true, change.clearedReading)
+          if (pendingRef.current.reads.get(key) === true) pendingRef.current.reads.delete(key)
+          if (change.clearedReading && pendingRef.current.reading.get(bookId) === null) {
+            pendingRef.current.reading.delete(bookId)
+          }
+          bump()
+          toast.success('독서 완료! 한 줄 평도 남겨 보세용')
+        } catch (caught) {
+          pendingRef.current.reads.delete(key)
+          if (change.clearedReading) pendingRef.current.reading.delete(bookId)
           bump()
           toast.error(toKoreanError(caught))
         }

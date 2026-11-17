@@ -1,5 +1,12 @@
 import { useState } from 'react'
 import { Check, ImageOff, MoreHorizontal } from 'lucide-react'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { averageRating, countReads, visibleFriends } from '@/lib/model'
 import { inkFor, paletteColor } from '@/lib/palette'
 import { useShelf } from '@/lib/store'
@@ -70,6 +77,7 @@ export function BookCard({
 }) {
   const shelf = useShelf()
   const [brokenCover, setBrokenCover] = useState(false)
+  const [choiceOpen, setChoiceOpen] = useState(false)
   const friends = visibleFriends(shelf.data.friends)
   const readCount = countReads(
     shelf.data.reads,
@@ -80,6 +88,10 @@ export function BookCard({
   const readerId = shelf.data.reading[book.id]
   const reader = friends.find((friend) => friend.id === readerId)
   const readerSwatch = reader ? paletteColor(reader.color) : null
+  const me = friends.find((friend) => friend.id === meId)
+  const meSwatch = me ? paletteColor(me.color) : null
+  const mineReading = readerId === meId
+  const mineRead = Boolean(shelf.data.reads[book.id]?.[meId])
   const average = averageRating(shelf.data.reviews.filter((review) => review.bookId === book.id))
 
   return (
@@ -194,41 +206,115 @@ export function BookCard({
         })}
       </div>
 
-      <div className="mt-2">
-        {reader && readerSwatch ? (
+      <div className="mt-2 space-y-2">
+        {reader && readerSwatch && !mineReading ? (
+          <div className="flex h-11 min-w-0 items-center gap-2 rounded-full px-3 text-[15px] font-bold" data-testid={`reading-${book.id}`} style={{ backgroundColor: readerSwatch.hex, color: inkFor(readerSwatch.hex) }}>
+            <span className="shrink-0 text-[13px] font-medium opacity-90">읽는 중</span>
+            <span className="truncate">{reader.name}</span>
+          </div>
+        ) : null}
+        {mineReading && reader && readerSwatch ? (
           <div className="flex min-h-11 items-center gap-2" data-testid={`reading-${book.id}`}>
-            <div
+            <button
+              type="button"
               className="flex h-11 min-w-0 flex-1 items-center gap-2 rounded-full px-3 text-[15px] font-bold"
               style={{ backgroundColor: readerSwatch.hex, color: inkFor(readerSwatch.hex) }}
+              onClick={() => setChoiceOpen(true)}
             >
               <span className="shrink-0 text-[13px] font-medium opacity-90">읽는 중</span>
               <span className="truncate">{reader.name}</span>
-            </div>
-            {readerId === meId ? (
-              <button
-                type="button"
-                className="h-11 shrink-0 rounded-full px-3 text-[15px] font-bold text-muted-foreground"
-                onClick={() => void shelf.setReading(book.id, null)}
-              >
-                해제
-              </button>
-            ) : null}
+            </button>
+            <button
+              type="button"
+              className="h-11 shrink-0 rounded-full px-3 text-[15px] font-bold text-muted-foreground"
+              onClick={() => void shelf.setReading(book.id, null)}
+            >
+              해제
+            </button>
           </div>
+        ) : mineRead && meSwatch ? (
+          <button
+            type="button"
+            className="flex h-11 w-full items-center justify-center gap-2 rounded-full px-3 text-[15px] font-bold"
+            data-testid={`finished-${book.id}`}
+            style={{ backgroundColor: meSwatch.hex, color: inkFor(meSwatch.hex) }}
+            onClick={() => setChoiceOpen(true)}
+          >
+            <span aria-hidden>✦</span>
+            독서 완료!
+          </button>
         ) : (
           <button
             type="button"
             className="flex h-11 w-full items-center justify-center rounded-full text-[15px] font-bold text-x ring-1 ring-inset ring-x/40"
             data-testid={`reading-${book.id}`}
-            onClick={() => void shelf.setReading(book.id, meId)}
+            onClick={() => setChoiceOpen(true)}
           >
             읽는 중
           </button>
         )}
       </div>
+      <ReadingChoice
+        open={choiceOpen}
+        reading={mineReading}
+        finished={mineRead && !mineReading}
+        onOpenChange={setChoiceOpen}
+        onReading={() => {
+          setChoiceOpen(false)
+          void shelf.setReading(book.id, meId)
+        }}
+        onFinished={() => {
+          setChoiceOpen(false)
+          void shelf.markFinished(book.id)
+        }}
+      />
       {reader ? (
         <ReadingExtras bookId={book.id} meId={meId} readerId={reader.id} onOpenFriend={onOpenFriend} />
       ) : null}
     </article>
+  )
+}
+
+function ReadingChoice({
+  open,
+  reading,
+  finished,
+  onOpenChange,
+  onReading,
+  onFinished,
+}: {
+  open: boolean
+  reading: boolean
+  finished: boolean
+  onOpenChange: (open: boolean) => void
+  onReading: () => void
+  onFinished: () => void
+}) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>읽기 상태</DialogTitle>
+          <DialogDescription>나만 바꿀 수 있어용.</DialogDescription>
+        </DialogHeader>
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            className={`h-12 rounded-full text-[15px] font-bold ${reading ? 'bg-x text-white' : 'ring-1 ring-inset ring-x/40 text-x'}`}
+            onClick={onReading}
+          >
+            읽는 중
+          </button>
+          <button
+            type="button"
+            className={`h-12 rounded-full text-[15px] font-bold ${finished ? 'bg-x text-white' : 'ring-1 ring-inset ring-x/40 text-x'}`}
+            onClick={onFinished}
+          >
+            완독
+          </button>
+        </div>
+      </DialogContent>
+    </Dialog>
   )
 }
 

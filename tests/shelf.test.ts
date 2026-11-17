@@ -12,7 +12,7 @@ import {
   titleForHangulQuery,
   type BookHit,
 } from '../src/lib/book-search.ts'
-import { cleanBirthday, cleanCover, cleanReview, findProfile, fromFirebase, nudgeLine, sameIdentity, sortedBooks, sortedComments, toggledRead } from '../src/lib/model.ts'
+import { cleanBirthday, cleanCover, cleanReview, findProfile, fromFirebase, markedFinished, nudgeLine, sameIdentity, sortedBooks, sortedComments, toggledRead } from '../src/lib/model.ts'
 import { formatPatchDate } from '../src/lib/patch-notes.ts'
 import { PALETTE } from '../src/lib/palette.ts'
 import { starterShelf } from '../src/lib/seed.ts'
@@ -50,6 +50,22 @@ test('checking the current reader clears 읽는 중 and unchecking brings it bac
   assert.equal(marked.reading['book-1'], undefined)
   const cleared = toggledRead({ ...shelf, reads: marked.reads, reading: marked.reading }, 'book-1', 'friend-chaeryeong')
   assert.equal(cleared.reads['book-1']?.['friend-chaeryeong'], undefined)
+})
+
+test('완독 checks 읽음 and clears my 읽는 중', () => {
+  const shelf: ShelfData = {
+    ...starterShelf(),
+    friends: [{ id: 'me', name: '나', order: 1, color: 'indigo', photo: null, birthday: '1999-01-01', approved: true }],
+    books: [{ id: 'book-1', title: '책', author: '', coverUrl: null, buyerId: 'me', order: 1 }],
+    reading: { 'book-1': 'me' },
+  }
+  const done = markedFinished(shelf, 'book-1', 'me')
+  assert.equal(done.reads['book-1']?.me, true)
+  assert.equal(done.clearedReading, true)
+  assert.equal(done.reading['book-1'], undefined)
+  const other = markedFinished({ ...shelf, reading: { 'book-1': 'other' } }, 'book-1', 'me')
+  assert.equal(other.reading['book-1'], 'other')
+  assert.equal(other.reads['book-1']?.me, true)
 })
 
 test('reviews stay within 200 characters and search keeps cover', () => {

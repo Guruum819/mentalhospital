@@ -517,6 +517,20 @@ export function toggledRead(
   }
 }
 
+/** Mark 완독: I have read it, and I am no longer the current reader. */
+export function markedFinished(
+  data: ShelfData,
+  bookId: string,
+  friendId: string,
+): { reads: ReadMap; reading: Record<string, string>; clearedReading: boolean } {
+  const clearedReading = data.reading[bookId] === friendId
+  return {
+    reads: withRead(data.reads, bookId, friendId, true),
+    reading: clearedReading ? withReading(data.reading, bookId, null) : data.reading,
+    clearedReading,
+  }
+}
+
 export function topLevelReviews(reviews: readonly Review[], bookId?: string): Review[] {
   return reviews.filter((review) => !review.parentId && (bookId === undefined || review.bookId === bookId))
 }
