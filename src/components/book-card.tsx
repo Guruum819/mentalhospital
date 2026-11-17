@@ -7,7 +7,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { averageRating, countReads, holderLine, nudgeAllowanceLine, nudgesRemaining, pendingPassLine, resolvedHolderId, visibleFriends } from '@/lib/model'
+import { averageRating, countReads, nudgeAllowanceLine, nudgesRemaining, pendingPassLine, resolvedHolderId, visibleFriends } from '@/lib/model'
 import { inkFor, paletteColor } from '@/lib/palette'
 import { useShelf } from '@/lib/store'
 import { toast } from 'sonner'
@@ -141,7 +141,17 @@ export function BookCard({
                 {book.title}
               </h2>
               <p data-testid="book-holder" className="mt-0.5 text-[13px] text-muted-foreground">
-                {holderLine(holder?.name ?? null, holding)}
+                {holder ? (
+                  <>
+                    지금{' '}
+                    <span className="font-bold" style={{ color: paletteColor(holder.color).hex }}>
+                      {holding ? '내가' : holder.name}
+                    </span>
+                    {holding ? ' ' : '님이 '}갖고 있어용
+                  </>
+                ) : (
+                  '지금 갖고 있는 사람이 없어용'
+                )}
               </p>
               {transfer ? (
                 <p data-testid="pending-pass" className="mt-0.5 text-[13px] font-medium text-foreground">

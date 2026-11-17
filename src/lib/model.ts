@@ -991,9 +991,9 @@ export function pendingPassLine(name: string): string {
 }
 
 export function holderLine(name: string | null, mine: boolean): string {
-  if (!name) return '📖 지금 갖고 있는 사람이 없어용'
-  if (mine) return '📖 지금 내가 갖고 있어용'
-  return `📖 지금 ${name}님이 갖고 있어용`
+  if (!name) return '지금 갖고 있는 사람이 없어용'
+  if (mine) return '지금 내가 갖고 있어용'
+  return `지금 ${name}님이 갖고 있어용`
 }
 
 /** Missing holder follows the buyer. '' means the copy is with nobody. */

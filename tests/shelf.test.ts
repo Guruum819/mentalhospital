@@ -298,9 +298,9 @@ test('a book stays with its buyer until someone passes it on', () => {
   const book = { id: 'book-1', title: '작별하지 않는다', author: '', coverUrl: null, buyerId: 'friend-chaeryeong', order: 1 }
   const both = new Set(['friend-chaeryeong', 'friend-minsu'])
   assert.equal(resolvedHolderId(book, both), 'friend-chaeryeong')
-  assert.equal(holderLine('채령', false), '📖 지금 채령님이 갖고 있어용')
-  assert.equal(holderLine('채령', true), '📖 지금 내가 갖고 있어용')
-  assert.equal(holderLine(null, false), '📖 지금 갖고 있는 사람이 없어용')
+  assert.equal(holderLine('채령', false), '지금 채령님이 갖고 있어용')
+  assert.equal(holderLine('채령', true), '지금 내가 갖고 있어용')
+  assert.equal(holderLine(null, false), '지금 갖고 있는 사람이 없어용')
   const passed = { ...book, holderId: 'friend-minsu' }
   assert.equal(resolvedHolderId(passed, both), 'friend-minsu')
   assert.equal(holderAfterRemoval(passed, 'friend-minsu', new Set(['friend-chaeryeong'])), 'friend-chaeryeong')
