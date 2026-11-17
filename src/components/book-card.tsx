@@ -7,12 +7,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { averageRating, countReads, nudgeAllowanceLine, nudgesRemaining, visibleFriends } from '@/lib/model'
+import { averageRating, countReads, holderLine, nudgeAllowanceLine, nudgesRemaining, resolvedHolderId, visibleFriends } from '@/lib/model'
 import { inkFor, paletteColor } from '@/lib/palette'
 import { useShelf } from '@/lib/store'
 import { toast } from 'sonner'
 import type { Book } from '@/lib/types'
 import { Avatar } from '@/components/avatar-editor'
+import { PassBookSheet } from '@/components/pass-book-sheet'
 import { StarRating } from '@/components/star-rating'
 import {
   DropdownMenu,
@@ -78,6 +79,7 @@ export function BookCard({
   const shelf = useShelf()
   const [brokenCover, setBrokenCover] = useState(false)
   const [choiceOpen, setChoiceOpen] = useState(false)
+  const [passOpen, setPassOpen] = useState(false)
   const [poking, setPoking] = useState(false)
   const now = useNow()
   const friends = visibleFriends(shelf.data.friends)
@@ -97,6 +99,9 @@ export function BookCard({
   const remaining = nudgesRemaining(shelf.data.nudgeSends[meId] ?? [], now)
   const canNudge = Boolean(reader && me && !mineReading)
   const outOfNudges = remaining === 0
+  const holderId = resolvedHolderId(book, new Set(friends.map((friend) => friend.id)))
+  const holder = holderId ? friends.find((friend) => friend.id === holderId) ?? null : null
+  const holding = holderId === meId
   const average = averageRating(shelf.data.reviews.filter((review) => review.bookId === book.id))
 
   return (
@@ -129,9 +134,14 @@ export function BookCard({
 
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-2">
-            <h2 data-testid="book-title" className="min-w-0 text-[17px] leading-snug font-bold tracking-tight">
-              {book.title}
-            </h2>
+            <div className="min-w-0 flex-1">
+              <h2 data-testid="book-title" className="truncate text-[17px] leading-snug font-bold tracking-tight">
+                {book.title}
+              </h2>
+              <p data-testid="book-holder" className="mt-0.5 text-[13px] text-muted-foreground">
+                {holderLine(holder?.name ?? null, holding)}
+              </p>
+            </div>
             {book.buyerId === meId ? (
               <BookMenu
                 canDelete
@@ -164,6 +174,25 @@ export function BookCard({
           <p className="text-[13px] text-muted-foreground">
             읽음 {readCount}/{friends.length}
           </p>
+          {holding ? (
+            <button
+              type="button"
+              data-testid="pass-book"
+              className="mt-2 h-11 rounded-full px-3 text-[15px] font-bold text-x ring-1 ring-inset ring-x/40"
+              onClick={() => setPassOpen(true)}
+            >
+              책 넘기기
+            </button>
+          ) : shelf.admin ? (
+            <button
+              type="button"
+              data-testid="reassign-holder"
+              className="mt-2 h-11 rounded-full px-3 text-[15px] font-bold ring-1 ring-inset ring-foreground/30"
+              onClick={() => setPassOpen(true)}
+            >
+              소장자 바꾸기
+            </button>
+          ) : null}
         </div>
       </div>
 
@@ -289,6 +318,7 @@ export function BookCard({
           </button>
         )}
       </div>
+      <PassBookSheet book={book} open={passOpen} onOpenChange={setPassOpen} />
       <ReadingChoice
         open={choiceOpen}
         reading={mineReading}

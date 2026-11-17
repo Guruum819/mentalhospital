@@ -17,6 +17,7 @@ import {
   newId,
   nextOrder,
   nudgesRemaining,
+  resolvedHolderId,
   sameIdentity,
   snapRating,
   markedFinished,
@@ -55,6 +56,7 @@ type ShelfApi = {
   addBook: (input: BookInput) => Promise<boolean>
   updateBook: (id: string, input: BookInput) => Promise<boolean>
   removeBook: (id: string) => Promise<boolean>
+  passBook: (bookId: string, toId: string) => Promise<boolean>
   toggleRead: (bookId: string, friendId: string) => Promise<void>
   setReading: (bookId: string, friendId: string | null) => Promise<void>
   markFinished: (bookId: string) => Promise<void>
@@ -422,6 +424,7 @@ export function ShelfProvider({ children }: { children: ReactNode }) {
           coverUrl: cleanCover(input.coverUrl),
           buyerId: input.buyerId,
           order: nextOrder(shelf.books),
+          holderId: input.buyerId,
         }
         const ok = await guard(() => repo.saveBook(book))
         if (ok) toast.success('책 추가했어용')
@@ -464,6 +467,33 @@ export function ShelfProvider({ children }: { children: ReactNode }) {
           return Promise.resolve(false)
         }
         return guard(() => repo.deleteBook(id, shelf.reviews))
+      },
+      async passBook(bookId, toId) {
+        const shelf = shownNow()
+        const book = shelf.books.find((item) => item.id === bookId)
+        const members = shelf.friends.filter((friend) => friend.approved)
+        const approved = new Set(members.map((friend) => friend.id))
+        const holder = book ? resolvedHolderId(book, approved) : null
+        const me = readWho()
+        const actorIsMember = Boolean(me && approved.has(me))
+        if (!book || !approved.has(toId)) {
+          toast.error('넘길 친구를 찾지 못했어용.')
+          return false
+        }
+        if (holder !== me && !isAdmin()) {
+          toast.error('지금 갖고 있는 사람만 넘길 수 있어용.')
+          return false
+        }
+        if (toId === holder) {
+          toast('이미 그 친구가 갖고 있어용.')
+          return false
+        }
+        const to = members.find((friend) => friend.id === toId)
+        const actorId = actorIsMember && me ? me : 'admin'
+        const event = { id: newId('handoff'), fromId: holder, toId, at: Date.now() }
+        const ok = await guard(() => repo.passBook(bookId, toId, event, actorId))
+        if (ok) toast.success(`${to?.name ?? '친구'}님한테 넘겼어용!`)
+        return ok
       },
       async toggleRead(bookId, friendId) {
         if (friendId !== readWho()) {

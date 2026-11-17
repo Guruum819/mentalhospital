@@ -3,11 +3,12 @@ import { ChevronLeft } from 'lucide-react'
 import { toast } from 'sonner'
 import { APP_BUILD_TIME, fetchDeployedBuildTime, formatBuildLabel, isNewerBuild, reloadLatestBuild } from '@/lib/app-build'
 import { readWho } from '@/lib/identity'
-import { MAX_REVIEW } from '@/lib/model'
+import { MAX_REVIEW, resolvedHolderId } from '@/lib/model'
 import { formatPatchDate, patchNotesNewestFirst } from '@/lib/patch-notes'
 import { useShelf } from '@/lib/store'
 import type { Friend } from '@/lib/types'
 import { Avatar } from '@/components/avatar-editor'
+import { PassBookSheet } from '@/components/pass-book-sheet'
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import { EdgeBack } from '@/components/edge-back'
 import { Button } from '@/components/ui/button'
@@ -498,6 +499,7 @@ function AdminTools({
   const [again, setAgain] = useState('')
   const [busy, setBusy] = useState(false)
   const [kicking, setKicking] = useState<Friend | null>(null)
+  const [passingBookId, setPassingBookId] = useState<string | null>(null)
   const [kickBusy, setKickBusy] = useState(false)
   const members = shelf.data.friends.filter((friend) => friend.approved)
   const openRequestCount = shelf.data.posts.filter((post) => !post.done).length
@@ -543,6 +545,37 @@ function AdminTools({
             ))}
           </ul>
         )}
+      </section>
+      <section>
+        <h2 className="pb-1 text-[13px] font-medium text-muted-foreground">책 소장</h2>
+        {shelf.data.books.length === 0 ? (
+          <p className="mt-2 text-sm text-muted-foreground">책이 없어용.</p>
+        ) : (
+          <ul className="mt-2 border-t border-border">
+            {shelf.data.books.map((book) => {
+              const holderId = resolvedHolderId(book, new Set(members.map((friend) => friend.id)))
+              const holder = members.find((friend) => friend.id === holderId)
+              return (
+                <li key={book.id} className="flex items-center justify-between gap-3 border-b py-3">
+                  <div className="min-w-0">
+                    <p className="truncate font-bold">{book.title}</p>
+                    <p className="text-sm text-muted-foreground">{holder ? `${holder.name}님이 갖고 있어용` : '갖고 있는 사람이 없어용'}</p>
+                  </div>
+                  <Button type="button" variant="outline" className="h-11 shrink-0 px-3" onClick={() => setPassingBookId(book.id)}>
+                    바꾸기
+                  </Button>
+                </li>
+              )
+            })}
+          </ul>
+        )}
+        <PassBookSheet
+          book={shelf.data.books.find((book) => book.id === passingBookId) ?? null}
+          open={passingBookId !== null}
+          onOpenChange={(open) => {
+            if (!open) setPassingBookId(null)
+          }}
+        />
       </section>
       <section>
         <h2 className="pb-1 text-[13px] font-medium text-muted-foreground">멤버</h2>

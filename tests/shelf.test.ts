@@ -12,7 +12,7 @@ import {
   titleForHangulQuery,
   type BookHit,
 } from '../src/lib/book-search.ts'
-import { cleanBirthday, cleanCover, cleanReview, dropMemberNotifications, findProfile, fromFirebase, fromPersisted, isSafeId, likeAlertLine, likeNotice, likeNoticeId, markedFinished, newId, nextNudgeSends, nudgeAlertLine, nudgeAllowanceLine, nudgeLine, nudgeNotice, nudgesRemaining, readNotifications, replyAlertLine, replyNotice, requestAlertLine, requestNotice, sameIdentity, seoulDay, sortedBooks, sortedComments, toggledRead, toPersisted, withNotification, withoutNotification } from '../src/lib/model.ts'
+import { cleanBirthday, cleanCover, cleanReview, dropMemberNotifications, findProfile, fromFirebase, fromPersisted, handoffAlertLine, holderAfterRemoval, holderLine, isSafeId, likeAlertLine, passTargets, resolvedHolderId, likeNotice, likeNoticeId, markedFinished, newId, nextNudgeSends, nudgeAlertLine, nudgeAllowanceLine, nudgeLine, nudgeNotice, nudgesRemaining, readNotifications, replyAlertLine, replyNotice, requestAlertLine, requestNotice, sameIdentity, seoulDay, sortedBooks, sortedComments, toggledRead, toPersisted, withNotification, withoutNotification } from '../src/lib/model.ts'
 import { formatPatchDate } from '../src/lib/patch-notes.ts'
 import { PALETTE } from '../src/lib/palette.ts'
 import { starterShelf } from '../src/lib/seed.ts'
@@ -290,4 +290,34 @@ test('each member gets four nudges per Seoul day', () => {
   })
   assert.equal(shelf.friends[0]?.name, '민수')
   assert.deepEqual(shelf.nudgeSends[me], [late])
+})
+
+test('a book stays with its buyer until someone passes it on', () => {
+  const book = { id: 'book-1', title: '작별하지 않는다', author: '', coverUrl: null, buyerId: 'friend-chaeryeong', order: 1 }
+  const both = new Set(['friend-chaeryeong', 'friend-minsu'])
+  assert.equal(resolvedHolderId(book, both), 'friend-chaeryeong')
+  assert.equal(holderLine('채령', false), '📖 지금 채령님이 갖고 있어용')
+  assert.equal(holderLine('채령', true), '📖 지금 내가 갖고 있어용')
+  assert.equal(holderLine(null, false), '📖 지금 갖고 있는 사람이 없어용')
+  const passed = { ...book, holderId: 'friend-minsu' }
+  assert.equal(resolvedHolderId(passed, both), 'friend-minsu')
+  assert.equal(holderAfterRemoval(passed, 'friend-minsu', new Set(['friend-chaeryeong'])), 'friend-chaeryeong')
+  assert.equal(holderAfterRemoval(book, 'friend-chaeryeong', new Set(['friend-minsu'])), '')
+  assert.equal(holderAfterRemoval(passed, 'friend-chaeryeong', new Set(['friend-minsu'])), undefined)
+  const targets = passTargets(
+    [{ id: 'friend-minsu' }, { id: 'friend-chaeryeong' }, { id: 'friend-other' }],
+    ['friend-other'],
+    'friend-chaeryeong',
+  )
+  assert.deepEqual(targets.queued.map((friend) => friend.id), ['friend-other'])
+  assert.deepEqual(targets.rest.map((friend) => friend.id), ['friend-minsu'])
+  assert.equal(handoffAlertLine('채령', '작별하지 않는다'), '채령님이 『작별하지 않는다』을 넘겨줬어용!')
+  const parsed = fromFirebase({
+    friends: { 'friend-chaeryeong': { name: '채령', order: 1, color: 'indigo', birthday: '1994-04-04' } },
+    books: { 'book-1': { ...book, holderId: '' } },
+    settings: { handoffs: { 'book-1': { 'handoff-1': { fromId: 'friend-chaeryeong', toId: 'friend-minsu', at: 4 } } } },
+  })
+  assert.equal(parsed.books[0]?.holderId, '')
+  assert.equal(resolvedHolderId(parsed.books[0]!, new Set(['friend-chaeryeong'])), null)
+  assert.equal(parsed.handoffs['book-1']?.[0]?.fromId, 'friend-chaeryeong')
 })

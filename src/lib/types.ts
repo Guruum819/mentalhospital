@@ -49,7 +49,7 @@ export type AdminLock = {
 /** One member's inbox item. Stored under that member in Realtime Database. */
 export type Notice = {
   id: string
-  kind: 'like' | 'reply' | 'nudge' | 'request'
+  kind: 'like' | 'reply' | 'nudge' | 'request' | 'handoff'
   actorId: string
   /** Empty when this opens the request board instead of a book. */
   bookId: string
@@ -70,6 +70,18 @@ export type Book = {
   coverUrl: string | null
   buyerId: string
   order: number
+  /**
+   * Who physically has the copy.
+   * Missing or null follows the buyer. '' means nobody has it.
+   */
+  holderId?: string | null
+}
+
+export type Handoff = {
+  id: string
+  fromId: string | null
+  toId: string
+  at: number
 }
 
 export type ReadMap = Record<string, Record<string, true>>
@@ -92,6 +104,8 @@ export type ShelfData = {
   notifications: Record<string, Notice[]>
   /** friend id → timestamps of 독촉 they sent. The daily cap counts Seoul midnights. */
   nudgeSends: Record<string, number[]>
+  /** bookId → newest handoff first. */
+  handoffs: Record<string, Handoff[]>
   initialized: boolean
 }
 

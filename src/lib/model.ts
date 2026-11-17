@@ -1,5 +1,5 @@
 import { PALETTE } from './palette.ts'
-import type { Book, BookSort, CommentSort, Friend, IdQueue, Notice, ReadMap, Review, ShelfData } from './types.ts'
+import type { Book, BookSort, CommentSort, Friend, Handoff, IdQueue, Notice, ReadMap, Review, ShelfData } from './types.ts'
 
 export const MAX_NAME = 20
 export const MAX_TITLE = 80
@@ -21,6 +21,7 @@ export function emptyShelf(): ShelfData {
     queues: {},
     notifications: {},
     nudgeSends: {},
+    handoffs: {},
     initialized: false,
   }
 }
@@ -234,6 +235,9 @@ function bookFrom(id: string, raw: unknown): Book | null {
   const buyerId = typeof raw.buyerId === 'string' ? raw.buyerId : ''
   if (!title || !isSafeId(buyerId)) return null
   const order = typeof raw.order === 'number' && Number.isFinite(raw.order) ? raw.order : 0
+  let holderId: string | null | undefined
+  if (raw.holderId === '') holderId = ''
+  else if (typeof raw.holderId === 'string' && isSafeId(raw.holderId)) holderId = raw.holderId
   return {
     id,
     title,
@@ -241,6 +245,7 @@ function bookFrom(id: string, raw: unknown): Book | null {
     coverUrl: cleanCover(raw.coverUrl),
     buyerId,
     order,
+    ...(holderId !== undefined ? { holderId } : {}),
   }
 }
 
@@ -358,7 +363,10 @@ function parsePosts(raw: unknown): ShelfData['posts'] {
 
 function parseNotice(id: string, raw: unknown): Notice | null {
   if (!isSafeId(id) || !isRecord(raw)) return null
-  const kind = raw.kind === 'like' || raw.kind === 'reply' || raw.kind === 'nudge' || raw.kind === 'request' ? raw.kind : null
+  const kind =
+    raw.kind === 'like' || raw.kind === 'reply' || raw.kind === 'nudge' || raw.kind === 'request' || raw.kind === 'handoff'
+      ? raw.kind
+      : null
   const actorId = typeof raw.actorId === 'string' ? raw.actorId : ''
   const bookId = typeof raw.bookId === 'string' ? raw.bookId : ''
   const createdAt = typeof raw.createdAt === 'number' && Number.isFinite(raw.createdAt) ? raw.createdAt : 0
@@ -443,6 +451,40 @@ function parseNudgeSendsUnderFriends(raw: unknown): Record<string, number[]> {
   return map
 }
 
+function parseHandoffList(raw: unknown): Handoff[] {
+  const entries: [string, unknown][] = Array.isArray(raw)
+    ? raw.map((item, index) => [isRecord(item) && typeof item.id === 'string' ? item.id : `handoff-${index}`, item])
+    : isRecord(raw)
+      ? Object.entries(raw)
+      : []
+  return entries
+    .map(([id, value]) => {
+      if (!isSafeId(id) || !isRecord(value)) return null
+      const toId = typeof value.toId === 'string' ? value.toId : ''
+      const at = typeof value.at === 'number' && Number.isFinite(value.at) ? value.at : 0
+      if (!isSafeId(toId)) return null
+      const fromId = typeof value.fromId === 'string' && isSafeId(value.fromId) ? value.fromId : null
+      return { id, fromId, toId, at }
+    })
+    .filter((item): item is Handoff => item !== null)
+    .sort((a, b) => b.at - a.at || a.id.localeCompare(b.id))
+}
+
+function parseHandoffMap(raw: unknown): Record<string, Handoff[]> {
+  if (!isRecord(raw)) return {}
+  const map: Record<string, Handoff[]> = {}
+  for (const [bookId, value] of Object.entries(raw)) {
+    if (!isSafeId(bookId)) continue
+    const list = parseHandoffList(value)
+    if (list.length > 0) map[bookId] = list
+  }
+  return map
+}
+
+function parseHandoffs(raw: unknown): Record<string, Handoff[]> {
+  return parseHandoffMap(raw)
+}
+
 /** Realtime Database keeps each inbox on the member: friends/{id}/notifications. */
 function parseNotificationsUnderFriends(raw: unknown): Record<string, Notice[]> {
   if (!isRecord(raw)) return {}
@@ -492,6 +534,7 @@ export function fromFirebase(raw: unknown): ShelfData {
     queues: parseIdQueue(settings.queues),
     notifications: parseNotificationsUnderFriends(friendsRaw),
     nudgeSends: parseNudgeSendsUnderFriends(friendsRaw),
+    handoffs: parseHandoffs(settings.handoffs),
     initialized: settings.initialized === true,
   }
 }
@@ -531,6 +574,7 @@ export function fromPersisted(raw: unknown): ShelfData | null {
     queues: parseIdQueue(raw.queues),
     notifications: parseNotificationMap(raw.notifications),
     nudgeSends: parseNudgeSendMap(raw.nudgeSends),
+    handoffs: parseHandoffMap(raw.handoffs),
     initialized: raw.initialized === true,
   }
 }
@@ -864,6 +908,70 @@ export function nudgeAlertLine(name: string, title: string): string {
 
 export function requestAlertLine(preview: string): string {
   return `관리자에게 답변이 달렸어용: ${noticePreview(preview)}`
+}
+
+export function handoffNoticeId(eventId: string): string {
+  return noticeKey('handoff', eventId)
+}
+
+export function handoffNotice(
+  actorId: string,
+  toId: string,
+  bookId: string,
+  eventId: string,
+  at: number,
+): { recipientId: string; notice: Notice } | null {
+  if (actorId === toId || !isSafeId(actorId) || !isSafeId(toId) || !isSafeId(bookId)) return null
+  const id = handoffNoticeId(eventId)
+  if (!isSafeId(id)) return null
+  return {
+    recipientId: toId,
+    notice: {
+      id,
+      kind: 'handoff',
+      actorId,
+      bookId,
+      reviewId: null,
+      postId: null,
+      preview: null,
+      createdAt: at,
+      read: false,
+    },
+  }
+}
+
+export function handoffAlertLine(name: string, title: string): string {
+  return `${name}님이 『${title}』을 넘겨줬어용!`
+}
+
+export function holderLine(name: string | null, mine: boolean): string {
+  if (!name) return '📖 지금 갖고 있는 사람이 없어용'
+  if (mine) return '📖 지금 내가 갖고 있어용'
+  return `📖 지금 ${name}님이 갖고 있어용`
+}
+
+/** Missing holder follows the buyer. '' means the copy is with nobody. */
+export function resolvedHolderId(book: Pick<Book, 'holderId' | 'buyerId'>, approvedIds: ReadonlySet<string>): string | null {
+  if (book.holderId === '') return null
+  if (book.holderId && approvedIds.has(book.holderId)) return book.holderId
+  if (approvedIds.has(book.buyerId)) return book.buyerId
+  return null
+}
+
+/** Write this holder after removing a member. undefined means leave the book alone. '' means nobody. */
+export function holderAfterRemoval(book: Book, removedId: string, approvedIdsAfter: ReadonlySet<string>): string | undefined {
+  const before = new Set(approvedIdsAfter)
+  before.add(removedId)
+  if (resolvedHolderId(book, before) !== removedId) return undefined
+  if (book.buyerId !== removedId && approvedIdsAfter.has(book.buyerId)) return book.buyerId
+  return ''
+}
+
+export function passTargets<T extends { id: string }>(members: readonly T[], queueIds: readonly string[], holderId: string | null): { queued: T[]; rest: T[] } {
+  const pool = members.filter((member) => member.id !== holderId)
+  const queued = queueIds.map((id) => pool.find((member) => member.id === id)).filter((member): member is T => Boolean(member))
+  const rest = pool.filter((member) => !queueIds.includes(member.id))
+  return { queued, rest }
 }
 
 export const DAILY_NUDGE_LIMIT = 4

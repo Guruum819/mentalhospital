@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { ChevronLeft } from 'lucide-react'
-import { likeAlertLine, nudgeAlertLine, replyAlertLine, requestAlertLine } from '@/lib/model'
+import { handoffAlertLine, likeAlertLine, nudgeAlertLine, replyAlertLine, requestAlertLine } from '@/lib/model'
 import { useShelf } from '@/lib/store'
 import type { Friend, Notice } from '@/lib/types'
 import { Avatar } from '@/components/avatar-editor'
@@ -67,16 +67,18 @@ export function NotificationsPage({
 function NotificationRow({ notice, onOpen }: { notice: Notice; onOpen: () => void }) {
   const shelf = useShelf()
   const request = notice.kind === 'request'
-  const actor = request ? null : shelf.data.friends.find((friend) => friend.id === notice.actorId)
-  const name = request ? '관리자' : (actor?.name ?? '친구')
+  const actor = notice.actorId === 'admin' || request ? null : shelf.data.friends.find((friend) => friend.id === notice.actorId)
+  const name = notice.actorId === 'admin' || request ? '관리자' : (actor?.name ?? '친구')
   const book = shelf.data.books.find((item) => item.id === notice.bookId)
   const line = request
     ? requestAlertLine(notice.preview ?? '')
-    : notice.kind === 'like'
-      ? likeAlertLine(name)
-      : notice.kind === 'reply'
-        ? replyAlertLine(name, notice.preview ?? '')
-        : nudgeAlertLine(name, book?.title ?? '책')
+    : notice.kind === 'handoff'
+      ? handoffAlertLine(name, book?.title ?? '책')
+      : notice.kind === 'like'
+        ? likeAlertLine(name)
+        : notice.kind === 'reply'
+          ? replyAlertLine(name, notice.preview ?? '')
+          : nudgeAlertLine(name, book?.title ?? '책')
   return (
     <button
       type="button"
@@ -89,7 +91,7 @@ function NotificationRow({ notice, onOpen }: { notice: Notice; onOpen: () => voi
       <Avatar name={name} photo={actor?.photo ?? null} size={36} />
       <span className="min-w-0 flex-1">
         <span className="block text-[15px] leading-snug">{line}</span>
-        {notice.kind !== 'nudge' && notice.kind !== 'request' ? (
+        {notice.kind !== 'nudge' && notice.kind !== 'request' && notice.kind !== 'handoff' ? (
           <span className="mt-0.5 block truncate text-[13px] text-muted-foreground">{book?.title ?? '책을 찾을 수 없어용'}</span>
         ) : null}
       </span>

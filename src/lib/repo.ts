@@ -12,6 +12,8 @@ import {
   dropMemberNotifications,
   fromFirebase,
   fromPersisted,
+  handoffNotice,
+  holderAfterRemoval,
   isSafeId,
   likeNotice,
   nextNudgeSends,
@@ -24,7 +26,7 @@ import {
   withoutNotification,
 } from './model.ts'
 import { starterFirebaseUpdate, starterShelf } from './seed.ts'
-import type { AdminLock, BoardPost, BoardReply, Book, Friend, Notice, Review, ShelfData, SyncMode } from './types.ts'
+import type { AdminLock, BoardPost, BoardReply, Book, Friend, Handoff, Notice, Review, ShelfData, SyncMode } from './types.ts'
 
 const STORAGE_KEY = 'exchange-reading-v2'
 const EMULATOR_FLAG = '__exchangeReadingEmulator'
@@ -37,6 +39,7 @@ export interface ShelfRepository {
   saveFriend: (friend: Friend) => Promise<void>
   deleteFriend: (friendId: string) => Promise<void>
   saveBook: (book: Book) => Promise<void>
+  passBook: (bookId: string, toId: string, event: Handoff, actorId: string) => Promise<void>
   deleteBook: (bookId: string, reviews?: readonly Review[]) => Promise<void>
   setRead: (bookId: string, friendId: string, read: boolean, clearReading: boolean) => Promise<void>
   setReading: (bookId: string, friendId: string | null) => Promise<void>
@@ -225,18 +228,37 @@ function createFirebaseRepo(): ShelfRepository {
       for (const [bookId, ids] of Object.entries(current.queues)) {
         if (ids.includes(friendId)) values[`settings/queues/${bookId}/${friendId}`] = null
       }
+      const approvedAfter = new Set(current.friends.filter((friend) => friend.id !== friendId && friend.approved).map((friend) => friend.id))
+      for (const book of current.books) {
+        const nextHolder = holderAfterRemoval(book, friendId, approvedAfter)
+        if (nextHolder !== undefined) values[`books/${book.id}/holderId`] = nextHolder
+      }
       await write(values)
     },
     async saveBook(book) {
-      await write({
-        [`books/${book.id}`]: {
-          title: book.title,
-          author: book.author,
-          coverUrl: book.coverUrl ?? '',
-          buyerId: book.buyerId,
-          order: book.order,
-        },
-      })
+      const creating = !current.books.some((item) => item.id === book.id)
+      const values: Record<string, unknown> = {
+        [`books/${book.id}/title`]: book.title,
+        [`books/${book.id}/author`]: book.author,
+        [`books/${book.id}/coverUrl`]: book.coverUrl ?? '',
+        [`books/${book.id}/buyerId`]: book.buyerId,
+        [`books/${book.id}/order`]: book.order,
+      }
+      if (creating) values[`books/${book.id}/holderId`] = book.holderId || book.buyerId
+      await write(values)
+    },
+    async passBook(bookId, toId, event, actorId) {
+      const book = current.books.find((item) => item.id === bookId)
+      if (!book || !current.friends.some((friend) => friend.id === toId && friend.approved)) return
+      const values: Record<string, unknown> = {
+        [`books/${bookId}/holderId`]: toId,
+        [`settings/handoffs/${bookId}/${event.id}`]: { fromId: event.fromId ?? '', toId: event.toId, at: event.at },
+      }
+      const built = handoffNotice(actorId, toId, bookId, event.id, event.at)
+      if (built && current.friends.some((friend) => friend.id === built.recipientId)) {
+        values[`friends/${built.recipientId}/notifications/${built.notice.id}`] = notificationValue(built.notice)
+      }
+      await write(values)
     },
     async deleteBook(bookId, reviews = current.reviews) {
       const values: Record<string, unknown> = {
@@ -245,6 +267,7 @@ function createFirebaseRepo(): ShelfRepository {
         [`reading/${bookId}`]: null,
         [`settings/nudges/${bookId}`]: null,
         [`settings/queues/${bookId}`]: null,
+        [`settings/handoffs/${bookId}`]: null,
       }
       for (const review of reviews) {
         if (review.bookId === bookId) values[`reviews/${review.id}`] = null
@@ -361,6 +384,7 @@ function createFirebaseRepo(): ShelfRepository {
         reviews: null,
         'settings/nudges': null,
         'settings/queues': null,
+        'settings/handoffs': null,
       })
     },
   }
@@ -467,15 +491,42 @@ function createDemoRepo(): ShelfRepository {
           queues,
           notifications: dropMemberNotifications(current, friendId).notifications,
           nudgeSends: dropSends(current.nudgeSends, friendId),
+          books: current.books.map((book) => {
+            const nextHolder = holderAfterRemoval(
+              book,
+              friendId,
+              new Set(current.friends.filter((friend) => friend.id !== friendId && friend.approved).map((friend) => friend.id)),
+            )
+            return nextHolder === undefined ? book : { ...book, holderId: nextHolder }
+          }),
         },
         true,
       )
     },
     async saveBook(book) {
-      const books = current.books.some((item) => item.id === book.id)
-        ? current.books.map((item) => (item.id === book.id ? book : item))
-        : [...current.books, book]
+      const existing = current.books.find((item) => item.id === book.id)
+      const stored: Book = existing
+        ? { ...existing, ...book, holderId: book.holderId !== undefined ? book.holderId : existing.holderId }
+        : { ...book, holderId: book.holderId || book.buyerId }
+      const books = existing ? current.books.map((item) => (item.id === book.id ? stored : item)) : [...current.books, stored]
       persist({ ...current, books }, true)
+    },
+    async passBook(bookId, toId, event, actorId) {
+      const book = current.books.find((item) => item.id === bookId)
+      if (!book || !current.friends.some((friend) => friend.id === toId && friend.approved)) return
+      let next: ShelfData = {
+        ...current,
+        books: current.books.map((item) => (item.id === bookId ? { ...item, holderId: toId } : item)),
+        handoffs: {
+          ...current.handoffs,
+          [bookId]: [event, ...(current.handoffs[bookId] ?? []).filter((item) => item.id !== event.id)],
+        },
+      }
+      const built = handoffNotice(actorId, toId, bookId, event.id, event.at)
+      if (built && current.friends.some((friend) => friend.id === built.recipientId)) {
+        next = withNotification(next, built.recipientId, built.notice)
+      }
+      persist(next, true)
     },
     async deleteBook(bookId, reviews = current.reviews) {
       const reads = { ...current.reads }
@@ -486,6 +537,8 @@ function createDemoRepo(): ShelfRepository {
       delete nudges[bookId]
       const queues = { ...current.queues }
       delete queues[bookId]
+      const handoffs = { ...current.handoffs }
+      delete handoffs[bookId]
       const dropped = new Set(reviews.filter((review) => review.bookId === bookId).map((review) => review.id))
       persist(
         {
@@ -496,6 +549,7 @@ function createDemoRepo(): ShelfRepository {
           reviews: current.reviews.filter((review) => review.bookId !== bookId && !dropped.has(review.id)),
           nudges,
           queues,
+          handoffs,
         },
         true,
       )
@@ -630,7 +684,7 @@ function createDemoRepo(): ShelfRepository {
     },
     async clearBooks() {
       persist(
-        { ...current, books: [], reads: {}, reading: {}, reviews: [], nudges: {}, queues: {} },
+        { ...current, books: [], reads: {}, reading: {}, reviews: [], nudges: {}, queues: {}, handoffs: {} },
         true,
       )
     },

@@ -89,6 +89,7 @@ export function BookDetail({
           </div>
         </header>
         <BookCard book={book} meId={me.id} onEdit={onEdit} onDelete={onDelete} onOpenFriend={onOpenFriend} />
+        <HandoffHistory bookId={book.id} meId={me.id} />
         <section>
           <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
             <h2 className="text-[17px] font-bold">한 줄 평</h2>
@@ -380,6 +381,40 @@ function CommentItem({
         </ul>
       ) : null}
     </li>
+  )
+}
+
+function HandoffHistory({ bookId, meId }: { bookId: string; meId: string }) {
+  const shelf = useShelf()
+  const events = (shelf.data.handoffs[bookId] ?? []).slice(0, 8)
+  if (events.length === 0) return null
+  return (
+    <section className="border-b border-border px-4 py-3">
+      <h2 className="text-[15px] font-bold">넘긴 기록</h2>
+      <ul className="mt-2 space-y-2">
+        {events.map((event) => {
+          const from = shelf.data.friends.find((friend) => friend.id === event.fromId)
+          const to = shelf.data.friends.find((friend) => friend.id === event.toId)
+          const fromName = event.fromId === meId ? '나' : (from?.name ?? '친구')
+          const toName = event.toId === meId ? '나' : (to?.name ?? '친구')
+          const line = !event.fromId
+            ? event.toId === meId
+              ? '내가 갖게 됐어용'
+              : `${toName}님이 갖게 됐어용`
+            : event.fromId === meId
+              ? `내가 ${toName}님께 넘겼어용`
+              : event.toId === meId
+                ? `${fromName}님이 나한테 넘겼어용`
+                : `${fromName}님이 ${toName}님께 넘겼어용`
+          return (
+            <li key={event.id} className="text-[13px] text-muted-foreground">
+              <span className="text-foreground">{line}</span>
+              <span className="ml-2">{formatTime(event.at)}</span>
+            </li>
+          )
+        })}
+      </ul>
+    </section>
   )
 }
 
