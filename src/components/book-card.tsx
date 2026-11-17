@@ -113,11 +113,13 @@ export function BookCard({
             <h2 data-testid="book-title" className="min-w-0 text-[17px] leading-snug font-bold tracking-tight">
               {book.title}
             </h2>
-            <BookMenu
-              canDelete={book.buyerId === meId}
-              onEdit={() => onEdit(book)}
-              onDelete={() => onDelete(book)}
-            />
+            {book.buyerId === meId ? (
+              <BookMenu
+                canDelete
+                onEdit={() => onEdit(book)}
+                onDelete={() => onDelete(book)}
+              />
+            ) : null}
           </div>
           <p className="truncate text-[15px] text-muted-foreground">{book.author || '저자 미상'}</p>
           {average !== null ? (

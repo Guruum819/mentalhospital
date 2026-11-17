@@ -325,9 +325,8 @@ export function ShelfProvider({ children }: { children: ReactNode }) {
         }
         const shelf = shownNow()
         const current = shelf.books.find((book) => book.id === id)
-        if (!current) return false
-        if (!shelf.friends.some((friend) => friend.id === input.buyerId)) {
-          toast.error('프로필로 들어간 뒤에 책을 올릴 수 있어용.')
+        if (!current || current.buyerId !== readWho()) {
+          toast.error('이 책을 올린 사람만 수정할 수 있어용.')
           return false
         }
         return guard(() =>
@@ -336,7 +335,7 @@ export function ShelfProvider({ children }: { children: ReactNode }) {
             title,
             author: cleanText(input.author, MAX_AUTHOR) ?? '',
             coverUrl: cleanCover(input.coverUrl),
-            buyerId: input.buyerId,
+            buyerId: current.buyerId,
           }),
         )
       },
