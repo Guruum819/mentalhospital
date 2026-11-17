@@ -12,7 +12,7 @@ import {
   titleForHangulQuery,
   type BookHit,
 } from '../src/lib/book-search.ts'
-import { cleanBirthday, cleanCover, cleanReview, findProfile, fromFirebase, markedFinished, nudgeLine, sameIdentity, sortedBooks, sortedComments, toggledRead } from '../src/lib/model.ts'
+import { cleanBirthday, cleanCover, cleanReview, dropMemberNotifications, findProfile, fromFirebase, fromPersisted, isSafeId, likeAlertLine, likeNotice, likeNoticeId, markedFinished, newId, nudgeAlertLine, nudgeLine, nudgeNotice, readNotifications, replyAlertLine, replyNotice, sameIdentity, sortedBooks, sortedComments, toggledRead, toPersisted, withNotification, withoutNotification } from '../src/lib/model.ts'
 import { formatPatchDate } from '../src/lib/patch-notes.ts'
 import { PALETTE } from '../src/lib/palette.ts'
 import { starterShelf } from '../src/lib/seed.ts'
@@ -172,4 +172,73 @@ test('book sort puts unrated last and comment sort follows likes', () => {
   assert.equal(formatPatchDate('2026-11-17'), '2026년 11월 17일')
   assert.equal(cleanCover('data:image/jpeg;base64,aaaa'), 'data:image/jpeg;base64,aaaa')
   assert.equal(cleanCover('data:image/png;base64,aaaa'), null)
+})
+
+test('notifications stay under the member, skip my own actions, and unlike removes a like', () => {
+  const me = newId('friend')
+  const other = newId('friend')
+  const reviewId = newId('review')
+  const replyId = newId('review')
+  const bookId = newId('book')
+  const review = { id: reviewId, friendId: me, bookId }
+  const like = likeNotice(review, other, 20)
+  assert.ok(like)
+  assert.equal(like.recipientId, me)
+  assert.equal(isSafeId(like.notice.id), true)
+  assert.equal(like.notice.id, likeNoticeId(reviewId, other))
+  assert.equal(likeNotice(review, me, 20), null)
+  const reply = replyNotice(
+    { id: reviewId, friendId: me },
+    { id: replyId, friendId: other, bookId, text: '다음 장도 좋았어용', createdAt: 30 },
+  )
+  assert.equal(reply?.notice.preview, '다음 장도 좋았어용')
+  assert.equal(replyNotice({ id: reviewId, friendId: me }, { id: replyId, friendId: me, bookId, text: '내가 달았어용', createdAt: 31 }), null)
+  const nudge = nudgeNotice(me, bookId, other, 40)
+  assert.equal(nudge?.recipientId, me)
+  assert.equal(nudgeNotice(me, bookId, me, 40), null)
+  let shelf = starterShelf()
+  shelf = withNotification(shelf, like.recipientId, like.notice)
+  shelf = withNotification(shelf, reply!.recipientId, reply!.notice)
+  shelf = withNotification(shelf, nudge!.recipientId, nudge!.notice)
+  assert.deepEqual(
+    shelf.notifications[me]?.map((notice) => notice.kind),
+    ['nudge', 'reply', 'like'],
+  )
+  shelf = withoutNotification(shelf, me, like.notice.id)
+  assert.equal(shelf.notifications[me]?.some((notice) => notice.kind === 'like'), false)
+  shelf = readNotifications(shelf, me, shelf.notifications[me]?.map((notice) => notice.id) ?? [])
+  assert.equal(shelf.notifications[me]?.every((notice) => notice.read), true)
+  const kept = withNotification(starterShelf(), other, { ...like.notice, id: 'like-other' })
+  const dropped = dropMemberNotifications({ ...kept, notifications: { ...kept.notifications, ...shelf.notifications } }, me)
+  assert.equal(dropped.notifications[me], undefined)
+  assert.equal(dropped.notifications[other]?.length, 1)
+  const raw = fromFirebase({
+    friends: {
+      [me]: {
+        name: '채령',
+        order: 1,
+        color: 'indigo',
+        birthday: '1999-01-01',
+        photo: '',
+        notifications: {
+          [nudge!.notice.id]: { kind: 'nudge', actorId: other, bookId, createdAt: 5, read: false },
+          old: { kind: 'like', actorId: other, bookId, reviewId, createdAt: 1, read: true },
+        },
+      },
+    },
+  })
+  assert.equal(raw.friends[0]?.name, '채령')
+  assert.deepEqual(
+    raw.notifications[me]?.map((notice) => notice.createdAt),
+    [5, 1],
+  )
+  const persisted = fromPersisted(toPersisted(raw))
+  assert.equal(persisted?.notifications[me]?.[0]?.kind, 'nudge')
+  const legacy = fromPersisted({ version: 1, friends: raw.friends, books: [] })
+  assert.deepEqual(legacy?.notifications, {})
+  assert.equal(likeAlertLine('민수'), '민수님이 내 한 줄 평을 좋아해용')
+  assert.equal(replyAlertLine('민수', '다음 장도 좋았어용'), '민수님이 내 한 줄 평에 답글을 달았어용: 다음 장도 좋았어용')
+  assert.equal(replyAlertLine('민수', '가'.repeat(50)).endsWith('…'), true)
+  assert.equal(replyAlertLine('민수', '가'.repeat(50)).includes('가'.repeat(41)), false)
+  assert.equal(nudgeAlertLine('민수', '작별하지 않는다'), '민수님이 『작별하지 않는다』 빨리 읽으래용!')
 })

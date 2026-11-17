@@ -46,6 +46,20 @@ export type AdminLock = {
   hash: string
 }
 
+/** One member's inbox item. Stored under that member in Realtime Database. */
+export type Notice = {
+  id: string
+  kind: 'like' | 'reply' | 'nudge'
+  actorId: string
+  bookId: string
+  /** Parent review for a like or reply. Empty for a nudge. */
+  reviewId: string | null
+  /** Reply text. Empty for a like or nudge. */
+  preview: string | null
+  createdAt: number
+  read: boolean
+}
+
 export type Book = {
   id: string
   title: string
@@ -71,6 +85,8 @@ export type ShelfData = {
   posts: BoardPost[]
   nudges: IdQueue
   queues: IdQueue
+  /** recipient friend id → newest first. */
+  notifications: Record<string, Notice[]>
   initialized: boolean
 }
 

@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
-import { Plus } from 'lucide-react'
+import { Bell, Plus } from 'lucide-react'
 import { toast } from 'sonner'
 import { forgetAccount, readAccounts, readWho, rememberAccount, signOutAccount } from '@/lib/identity'
-import { nudgeLine, shelfStats, sortedBooks, visibleFriends } from '@/lib/model'
+import { nudgeLine, shelfStats, sortedBooks, unreadNotificationCount, visibleFriends } from '@/lib/model'
 import { paletteColor } from '@/lib/palette'
 import { useShelf } from '@/lib/store'
 import type { Book, BookSort, Friend } from '@/lib/types'
@@ -12,6 +12,7 @@ import { BookCard } from '@/components/book-card'
 import { BookDetail } from '@/components/book-detail'
 import { BookDialog } from '@/components/book-dialog'
 import { ConfirmDialog } from '@/components/confirm-dialog'
+import { NotificationsPage } from '@/components/notifications-page'
 import { ProfileGate } from '@/components/profile-gate'
 import { ProfilePage } from '@/components/profile-page'
 import { SettingsPage } from '@/components/settings-page'
@@ -27,6 +28,7 @@ import {
 type View =
   | { name: 'home' }
   | { name: 'settings' }
+  | { name: 'alerts' }
   | { name: 'profile'; friendId: string }
   | { name: 'book'; bookId: string }
 
@@ -254,6 +256,7 @@ export function ShelfScreen() {
   const deviceAccounts = readAccounts()
     .map((id) => members.find((friend) => friend.id === id))
     .filter((friend): friend is Friend => Boolean(friend && friend.id !== me.id))
+  const unreadAlerts = unreadNotificationCount(shelf.data.notifications, me.id)
   const notices = shelf.data.books.filter(
     (book) => shelf.data.reading[book.id] === me.id && (shelf.data.nudges[book.id]?.length ?? 0) > 0,
   )
@@ -289,6 +292,18 @@ export function ShelfScreen() {
               onGuide={() => setGuideOpen(true)}
               onClearBooks={() => setConfirm({ kind: 'clear' })}
             />
+          ) : top.name === 'alerts' ? (
+            <NotificationsPage
+              me={me}
+              onBack={pop}
+              onOpenBook={(bookId) => {
+                if (!shelf.data.books.some((book) => book.id === bookId)) {
+                  toast('이 책을 찾을 수 없어용.')
+                  return
+                }
+                push({ name: 'book', bookId })
+              }}
+            />
           ) : top.name === 'book' && detail ? (
             <BookDetail
               book={detail}
@@ -309,9 +324,23 @@ export function ShelfScreen() {
                     <Avatar name={me.name} photo={me.photo} size={32} />
                   </button>
                   <h1 className="pointer-events-none absolute inset-x-14 truncate text-center text-[17px] font-bold tracking-tight">교환독서</h1>
-                  <span className="relative z-10 ml-auto">
-                    <Status mode={shelf.mode} connected={shelf.connected} />
-                  </span>
+                  <button
+                    type="button"
+                    className="relative z-10 ml-auto grid size-11 place-items-center"
+                    aria-label={unreadAlerts > 0 ? `알림, 안 읽은 ${unreadAlerts}개` : '알림'}
+                    data-testid="notification-bell"
+                    onClick={() => push({ name: 'alerts' })}
+                  >
+                    <Bell className="size-[22px]" strokeWidth={2} />
+                    {unreadAlerts > 0 ? (
+                      <span
+                        data-testid="notification-count"
+                        className="absolute top-1.5 right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-x px-1 text-[10px] font-bold leading-none text-white tabular-nums"
+                      >
+                        {unreadAlerts > 99 ? '99+' : unreadAlerts}
+                      </span>
+                    ) : null}
+                  </button>
                 </div>
               </header>
               {shelf.mode === 'demo' ? (
@@ -432,26 +461,6 @@ function confirmText(confirm: Confirm) {
   if (confirm?.kind === 'delete-book') return '읽은 기록이랑 리뷰도 같이 사라져용.'
   if (confirm?.kind === 'clear') return '책이랑 한 줄 평만 지울 거예용. 프로필은 그대로예용.'
   return ''
-}
-
-function Status({ mode, connected }: { mode: 'demo' | 'firebase'; connected: boolean }) {
-  if (mode === 'demo') {
-    return (
-      <span data-testid="sync-status" role="status" className="inline-flex h-11 items-center gap-1 pr-3 text-[13px] font-medium text-muted-foreground">
-        이 브라우저
-      </span>
-    )
-  }
-  return (
-    <span
-      data-testid="sync-status"
-      role="status"
-      className="inline-flex h-11 items-center gap-1.5 pr-3 text-[13px] font-medium text-muted-foreground"
-    >
-      <span className={`size-2 rounded-full ${connected ? 'bg-x' : 'bg-muted-foreground'}`} />
-      {connected ? '실시간' : '연결 중'}
-    </span>
-  )
 }
 
 function GuideDialog({ open, onOpenChange, demo }: { open: boolean; onOpenChange: (open: boolean) => void; demo: boolean }) {

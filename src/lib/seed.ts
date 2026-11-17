@@ -13,6 +13,7 @@ export function starterShelf(): ShelfData {
     posts: [],
     nudges: {},
     queues: {},
+    notifications: {},
     initialized: true,
   }
 }

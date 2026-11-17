@@ -1,5 +1,5 @@
 import { PALETTE } from './palette.ts'
-import type { Book, BookSort, CommentSort, Friend, IdQueue, ReadMap, Review, ShelfData } from './types.ts'
+import type { Book, BookSort, CommentSort, Friend, IdQueue, Notice, ReadMap, Review, ShelfData } from './types.ts'
 
 export const MAX_NAME = 20
 export const MAX_TITLE = 80
@@ -19,6 +19,7 @@ export function emptyShelf(): ShelfData {
     posts: [],
     nudges: {},
     queues: {},
+    notifications: {},
     initialized: false,
   }
 }
@@ -354,6 +355,61 @@ function parsePosts(raw: unknown): ShelfData['posts'] {
   return posts.sort((a, b) => b.createdAt - a.createdAt)
 }
 
+function parseNotice(id: string, raw: unknown): Notice | null {
+  if (!isSafeId(id) || !isRecord(raw)) return null
+  const kind = raw.kind === 'like' || raw.kind === 'reply' || raw.kind === 'nudge' ? raw.kind : null
+  const actorId = typeof raw.actorId === 'string' ? raw.actorId : ''
+  const bookId = typeof raw.bookId === 'string' ? raw.bookId : ''
+  const createdAt = typeof raw.createdAt === 'number' && Number.isFinite(raw.createdAt) ? raw.createdAt : 0
+  if (!kind || !isSafeId(actorId) || !isSafeId(bookId)) return null
+  const reviewId = typeof raw.reviewId === 'string' && isSafeId(raw.reviewId) ? raw.reviewId : null
+  return {
+    id,
+    kind,
+    actorId,
+    bookId,
+    reviewId,
+    preview: cleanReview(raw.preview),
+    createdAt,
+    read: raw.read === true,
+  }
+}
+
+function parseNoticeList(raw: unknown): Notice[] {
+  const entries: [string, unknown][] = Array.isArray(raw)
+    ? raw.map((item, index) => [isRecord(item) && typeof item.id === 'string' ? item.id : `notice-${index}`, item])
+    : isRecord(raw)
+      ? Object.entries(raw)
+      : []
+  return entries
+    .map(([id, value]) => parseNotice(id, value))
+    .filter((notice): notice is Notice => notice !== null)
+    .sort((a, b) => b.createdAt - a.createdAt || a.id.localeCompare(b.id))
+}
+
+function parseNotificationMap(raw: unknown): Record<string, Notice[]> {
+  if (!isRecord(raw)) return {}
+  const map: Record<string, Notice[]> = {}
+  for (const [friendId, value] of Object.entries(raw)) {
+    if (!isSafeId(friendId)) continue
+    const list = parseNoticeList(value)
+    if (list.length > 0) map[friendId] = list
+  }
+  return map
+}
+
+/** Realtime Database keeps each inbox on the member: friends/{id}/notifications. */
+function parseNotificationsUnderFriends(raw: unknown): Record<string, Notice[]> {
+  if (!isRecord(raw)) return {}
+  const map: Record<string, Notice[]> = {}
+  for (const [friendId, value] of Object.entries(raw)) {
+    if (!isSafeId(friendId) || !isRecord(value)) continue
+    const list = parseNoticeList(value.notifications)
+    if (list.length > 0) map[friendId] = list
+  }
+  return map
+}
+
 function parseReading(raw: unknown): Record<string, string> {
   if (!isRecord(raw)) return {}
   const reading: Record<string, string> = {}
@@ -368,8 +424,9 @@ function parseReading(raw: unknown): Record<string, string> {
 export function fromFirebase(raw: unknown): ShelfData {
   if (!isRecord(raw)) return emptyShelf()
   const settings = isRecord(raw.settings) ? raw.settings : {}
+  const friendsRaw = isRecord(raw.friends) ? raw.friends : {}
   const friends = sortFriends(
-    Object.entries(isRecord(raw.friends) ? raw.friends : {})
+    Object.entries(friendsRaw)
       .map(([id, value]) => friendFrom(id, value))
       .filter((friend): friend is Friend => friend !== null),
   )
@@ -388,6 +445,7 @@ export function fromFirebase(raw: unknown): ShelfData {
     posts: parsePosts(settings.requests),
     nudges: parseIdQueue(settings.nudges),
     queues: parseIdQueue(settings.queues),
+    notifications: parseNotificationsUnderFriends(friendsRaw),
     initialized: settings.initialized === true,
   }
 }
@@ -425,6 +483,7 @@ export function fromPersisted(raw: unknown): ShelfData | null {
     posts: parsePosts(raw.posts),
     nudges: parseIdQueue(raw.nudges),
     queues: parseIdQueue(raw.queues),
+    notifications: parseNotificationMap(raw.notifications),
     initialized: raw.initialized === true,
   }
 }
@@ -571,6 +630,162 @@ export function sortedComments(reviews: readonly Review[], mode: CommentSort): R
   }
   copy.sort((a, b) => b.createdAt - a.createdAt)
   return copy
+}
+
+const NOTICE_PREVIEW = 40
+
+function noticeBody(id: string): string {
+  const cut = id.indexOf('-')
+  return cut >= 0 ? id.slice(cut + 1) : id
+}
+
+function noticeKey(prefix: string, ...parts: string[]): string {
+  return [prefix, ...parts.map(noticeBody)].join('-')
+}
+
+export function likeNoticeId(reviewId: string, actorId: string): string {
+  return noticeKey('like', reviewId, actorId)
+}
+
+export function replyNoticeId(replyId: string): string {
+  return noticeKey('reply', replyId)
+}
+
+export function nudgeNoticeId(bookId: string, actorId: string): string {
+  return noticeKey('nudge', bookId, actorId)
+}
+
+export function likeNotice(
+  review: Pick<Review, 'id' | 'friendId' | 'bookId'>,
+  actorId: string,
+  at: number,
+): { recipientId: string; notice: Notice } | null {
+  if (review.friendId === actorId || !isSafeId(actorId) || !isSafeId(review.friendId) || !isSafeId(review.bookId)) return null
+  const id = likeNoticeId(review.id, actorId)
+  if (!isSafeId(id)) return null
+  return {
+    recipientId: review.friendId,
+    notice: {
+      id,
+      kind: 'like',
+      actorId,
+      bookId: review.bookId,
+      reviewId: review.id,
+      preview: null,
+      createdAt: at,
+      read: false,
+    },
+  }
+}
+
+export function replyNotice(
+  parent: Pick<Review, 'id' | 'friendId'>,
+  reply: Pick<Review, 'id' | 'friendId' | 'bookId' | 'text' | 'createdAt'>,
+): { recipientId: string; notice: Notice } | null {
+  if (parent.friendId === reply.friendId || !isSafeId(parent.friendId) || !isSafeId(reply.friendId) || !isSafeId(reply.bookId)) {
+    return null
+  }
+  const preview = cleanReview(reply.text)
+  const id = replyNoticeId(reply.id)
+  if (!preview || !isSafeId(id) || !isSafeId(parent.id)) return null
+  return {
+    recipientId: parent.friendId,
+    notice: {
+      id,
+      kind: 'reply',
+      actorId: reply.friendId,
+      bookId: reply.bookId,
+      reviewId: parent.id,
+      preview,
+      createdAt: reply.createdAt,
+      read: false,
+    },
+  }
+}
+
+export function nudgeNotice(
+  readerId: string | null | undefined,
+  bookId: string,
+  actorId: string,
+  at: number,
+): { recipientId: string; notice: Notice } | null {
+  if (!readerId || readerId === actorId || !isSafeId(readerId) || !isSafeId(bookId) || !isSafeId(actorId)) return null
+  const id = nudgeNoticeId(bookId, actorId)
+  if (!isSafeId(id)) return null
+  return {
+    recipientId: readerId,
+    notice: {
+      id,
+      kind: 'nudge',
+      actorId,
+      bookId,
+      reviewId: null,
+      preview: null,
+      createdAt: at,
+      read: false,
+    },
+  }
+}
+
+export function withNotification(data: ShelfData, recipientId: string, notice: Notice): ShelfData {
+  const current = data.notifications[recipientId] ?? []
+  const next = [notice, ...current.filter((item) => item.id !== notice.id)].sort(
+    (a, b) => b.createdAt - a.createdAt || a.id.localeCompare(b.id),
+  )
+  return { ...data, notifications: { ...data.notifications, [recipientId]: next } }
+}
+
+export function withoutNotification(data: ShelfData, recipientId: string, noticeId: string): ShelfData {
+  const current = data.notifications[recipientId]
+  if (!current) return data
+  const next = current.filter((item) => item.id !== noticeId)
+  const notifications = { ...data.notifications }
+  if (next.length > 0) notifications[recipientId] = next
+  else delete notifications[recipientId]
+  return { ...data, notifications }
+}
+
+export function dropMemberNotifications(data: ShelfData, friendId: string): ShelfData {
+  if (!data.notifications[friendId]) return data
+  const notifications = { ...data.notifications }
+  delete notifications[friendId]
+  return { ...data, notifications }
+}
+
+export function readNotifications(data: ShelfData, friendId: string, ids: readonly string[]): ShelfData {
+  const current = data.notifications[friendId]
+  if (!current || ids.length === 0) return data
+  const wanted = new Set(ids)
+  let changed = false
+  const next = current.map((notice) => {
+    if (!wanted.has(notice.id) || notice.read) return notice
+    changed = true
+    return { ...notice, read: true }
+  })
+  if (!changed) return data
+  return { ...data, notifications: { ...data.notifications, [friendId]: next } }
+}
+
+export function noticePreview(text: string): string {
+  const chars = Array.from(text)
+  if (chars.length <= NOTICE_PREVIEW) return text
+  return `${chars.slice(0, NOTICE_PREVIEW).join('')}…`
+}
+
+export function likeAlertLine(name: string): string {
+  return `${name}님이 내 한 줄 평을 좋아해용`
+}
+
+export function replyAlertLine(name: string, preview: string): string {
+  return `${name}님이 내 한 줄 평에 답글을 달았어용: ${noticePreview(preview)}`
+}
+
+export function nudgeAlertLine(name: string, title: string): string {
+  return `${name}님이 『${title}』 빨리 읽으래용!`
+}
+
+export function unreadNotificationCount(notifications: ShelfData['notifications'], friendId: string): number {
+  return (notifications[friendId] ?? []).reduce((total, notice) => total + (notice.read ? 0 : 1), 0)
 }
 
 /** Names are oldest nudge first. The sentence names the latest person. */

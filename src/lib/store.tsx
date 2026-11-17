@@ -64,6 +64,7 @@ type ShelfApi = {
   deleteRequest: (id: string) => Promise<boolean>
   setRequestDone: (id: string, done: boolean) => Promise<boolean>
   replyRequest: (id: string, text: string) => Promise<boolean>
+  markNotificationsRead: () => Promise<void>
   setupAdmin: (password: string, again: string) => Promise<boolean>
   loginAdmin: (password: string) => Promise<boolean>
   changeAdmin: (current: string, next: string, again: string) => Promise<boolean>
@@ -77,6 +78,7 @@ type Pending = {
   reads: Map<string, boolean>
   reading: Map<string, string | null>
   likes: Map<string, boolean>
+  noticeReads: Set<string>
 }
 
 function cellKey(bookId: string, friendId: string) {
@@ -110,14 +112,32 @@ function applyPending(base: ShelfData, pending: Pending): ShelfData {
       return changed ? { ...review, likes } : review
     })
   }
-  return { ...base, reads, reading, reviews }
+  let notifications = base.notifications
+  if (pending.noticeReads.size > 0) {
+    const grouped = new Map<string, Set<string>>()
+    for (const key of pending.noticeReads) {
+      const slash = key.indexOf('/')
+      const friendId = key.slice(0, slash)
+      const noticeId = key.slice(slash + 1)
+      const ids = grouped.get(friendId) ?? new Set<string>()
+      ids.add(noticeId)
+      grouped.set(friendId, ids)
+    }
+    notifications = { ...notifications }
+    for (const [friendId, ids] of grouped) {
+      const list = notifications[friendId]
+      if (!list) continue
+      notifications[friendId] = list.map((notice) => (ids.has(notice.id) && !notice.read ? { ...notice, read: true } : notice))
+    }
+  }
+  return { ...base, reads, reading, reviews, notifications }
 }
 
 export function ShelfProvider({ children }: { children: ReactNode }) {
   const [repo] = useState(createRepository)
   const [data, setData] = useState<ShelfData>(starterShelf)
   const dataRef = useRef(data)
-  const pendingRef = useRef<Pending>({ reads: new Map(), reading: new Map(), likes: new Map() })
+  const pendingRef = useRef<Pending>({ reads: new Map(), reading: new Map(), likes: new Map(), noticeReads: new Set() })
   const [pendingTick, setPendingTick] = useState(0)
   const [ready, setReady] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -142,6 +162,13 @@ export function ShelfProvider({ children }: { children: ReactNode }) {
           const review = next.reviews.find((item) => item.id === key.slice(0, slash))
           const actual = Boolean(review?.likes.includes(key.slice(slash + 1)))
           if (review && actual === desired) pendingRef.current.likes.delete(key)
+        }
+        for (const key of pendingRef.current.noticeReads) {
+          const slash = key.indexOf('/')
+          const friendId = key.slice(0, slash)
+          const noticeId = key.slice(slash + 1)
+          const notice = next.notifications[friendId]?.find((item) => item.id === noticeId)
+          if (!notice || notice.read) pendingRef.current.noticeReads.delete(key)
         }
         setData(next)
         setConnected(meta.connected)
@@ -509,6 +536,22 @@ export function ShelfProvider({ children }: { children: ReactNode }) {
         } catch (caught) {
           pendingRef.current.reads.delete(key)
           if (change.clearedReading) pendingRef.current.reading.delete(bookId)
+          bump()
+          toast.error(toKoreanError(caught))
+        }
+      },
+      async markNotificationsRead() {
+        const me = readWho()
+        if (!me) return
+        const unread = (shownNow().notifications[me] ?? []).filter((notice) => !notice.read)
+        if (unread.length === 0) return
+        const keys = unread.map((notice) => `${me}/${notice.id}`)
+        for (const key of keys) pendingRef.current.noticeReads.add(key)
+        bump()
+        try {
+          await repo.markNotificationsRead(me, unread.map((notice) => notice.id))
+        } catch (caught) {
+          for (const key of keys) pendingRef.current.noticeReads.delete(key)
           bump()
           toast.error(toKoreanError(caught))
         }

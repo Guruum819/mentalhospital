@@ -8,9 +8,21 @@ import {
   type Database,
 } from 'firebase/database'
 import { emulatorAddress, readFirebaseConfig } from './config.ts'
-import { fromFirebase, fromPersisted, toPersisted } from './model.ts'
+import {
+  dropMemberNotifications,
+  fromFirebase,
+  fromPersisted,
+  isSafeId,
+  likeNotice,
+  nudgeNotice,
+  readNotifications,
+  replyNotice,
+  toPersisted,
+  withNotification,
+  withoutNotification,
+} from './model.ts'
 import { starterFirebaseUpdate, starterShelf } from './seed.ts'
-import type { AdminLock, BoardPost, BoardReply, Book, Friend, Review, ShelfData, SyncMode } from './types.ts'
+import type { AdminLock, BoardPost, BoardReply, Book, Friend, Notice, Review, ShelfData, SyncMode } from './types.ts'
 
 const STORAGE_KEY = 'exchange-reading-v2'
 const EMULATOR_FLAG = '__exchangeReadingEmulator'
@@ -38,6 +50,7 @@ export interface ShelfRepository {
   deleteRequest: (postId: string) => Promise<void>
   setRequestDone: (postId: string, done: boolean) => Promise<void>
   addRequestReply: (postId: string, reply: BoardReply) => Promise<void>
+  markNotificationsRead: (friendId: string, ids: readonly string[]) => Promise<void>
   /** Deletes books, reads, reviews, nudges, and queues. Leaves friends and board posts alone. */
   clearBooks: () => Promise<void>
 }
@@ -86,6 +99,19 @@ function reviewPayload(review: Review) {
     editedAt: review.editedAt,
     likes: Object.fromEntries(review.likes.map((id) => [id, true])),
   }
+}
+
+function notificationValue(notice: Notice) {
+  const value: Record<string, unknown> = {
+    kind: notice.kind,
+    actorId: notice.actorId,
+    bookId: notice.bookId,
+    createdAt: notice.createdAt,
+    read: notice.read,
+  }
+  if (notice.reviewId) value.reviewId = notice.reviewId
+  if (notice.preview) value.preview = notice.preview
+  return value
 }
 
 function requestPayload(post: BoardPost) {
@@ -161,14 +187,12 @@ function createFirebaseRepo(): ShelfRepository {
     },
     async saveFriend(friend) {
       await write({
-        [`friends/${friend.id}`]: {
-          name: friend.name,
-          order: friend.order,
-          color: friend.color,
-          photo: friend.photo ?? '',
-          birthday: friend.birthday,
-          approved: friend.approved,
-        },
+        [`friends/${friend.id}/name`]: friend.name,
+        [`friends/${friend.id}/order`]: friend.order,
+        [`friends/${friend.id}/color`]: friend.color,
+        [`friends/${friend.id}/photo`]: friend.photo ?? '',
+        [`friends/${friend.id}/birthday`]: friend.birthday,
+        [`friends/${friend.id}/approved`]: friend.approved,
       })
     },
     async deleteFriend(friendId) {
@@ -241,7 +265,13 @@ function createFirebaseRepo(): ShelfRepository {
       await write(values)
     },
     async addReview(review) {
-      await write({ [`reviews/${review.id}`]: reviewPayload(review) })
+      const values: Record<string, unknown> = { [`reviews/${review.id}`]: reviewPayload(review) }
+      if (review.parentId) {
+        const parent = current.reviews.find((item) => item.id === review.parentId)
+        const built = parent ? replyNotice(parent, review) : null
+        if (built) values[`friends/${built.recipientId}/notifications/${built.notice.id}`] = notificationValue(built.notice)
+      }
+      await write(values)
     },
     async updateReview(reviewId, text, editedAt) {
       await write({
@@ -257,10 +287,21 @@ function createFirebaseRepo(): ShelfRepository {
       await write(values)
     },
     async setReviewLike(reviewId, friendId, like) {
-      await write({ [`reviews/${reviewId}/likes/${friendId}`]: like ? true : null })
+      const values: Record<string, unknown> = {
+        [`reviews/${reviewId}/likes/${friendId}`]: like ? true : null,
+      }
+      const review = current.reviews.find((item) => item.id === reviewId)
+      const built = review ? likeNotice(review, friendId, Date.now()) : null
+      if (built) {
+        values[`friends/${built.recipientId}/notifications/${built.notice.id}`] = like ? notificationValue(built.notice) : null
+      }
+      await write(values)
     },
     async setNudge(bookId, friendId, at) {
-      await write({ [`settings/nudges/${bookId}/${friendId}`]: at })
+      const values: Record<string, unknown> = { [`settings/nudges/${bookId}/${friendId}`]: at }
+      const built = nudgeNotice(current.reading[bookId], bookId, friendId, at)
+      if (built) values[`friends/${built.recipientId}/notifications/${built.notice.id}`] = notificationValue(built.notice)
+      await write(values)
     },
     async clearNudges(bookId) {
       await write({ [`settings/nudges/${bookId}`]: null })
@@ -284,6 +325,15 @@ function createFirebaseRepo(): ShelfRepository {
       await write({
         [`settings/requests/${postId}/replies/${reply.id}`]: { text: reply.text, createdAt: reply.createdAt },
       })
+    },
+    async markNotificationsRead(friendId, ids) {
+      const values: Record<string, unknown> = {}
+      for (const id of ids) {
+        if (!isSafeId(friendId) || !isSafeId(id)) continue
+        values[`friends/${friendId}/notifications/${id}/read`] = true
+      }
+      if (Object.keys(values).length === 0) return
+      await write(values)
     },
     async clearBooks() {
       await write({
@@ -390,6 +440,7 @@ function createDemoRepo(): ShelfRepository {
           posts: current.posts.filter((post) => post.friendId !== friendId),
           nudges,
           queues,
+          notifications: dropMemberNotifications(current, friendId).notifications,
         },
         true,
       )
@@ -448,7 +499,13 @@ function createDemoRepo(): ShelfRepository {
       persist({ ...current, reading, nudges, queues }, true)
     },
     async addReview(review) {
-      persist({ ...current, reviews: [review, ...current.reviews.filter((item) => item.id !== review.id)] }, true)
+      let next: ShelfData = { ...current, reviews: [review, ...current.reviews.filter((item) => item.id !== review.id)] }
+      if (review.parentId) {
+        const parent = current.reviews.find((item) => item.id === review.parentId)
+        const built = parent ? replyNotice(parent, review) : null
+        if (built) next = withNotification(next, built.recipientId, built.notice)
+      }
+      persist(next, true)
     },
     async updateReview(reviewId, text, editedAt) {
       persist(
@@ -469,23 +526,31 @@ function createDemoRepo(): ShelfRepository {
       )
     },
     async setReviewLike(reviewId, friendId, like) {
-      persist(
-        {
-          ...current,
-          reviews: current.reviews.map((review) => {
-            if (review.id !== reviewId) return review
-            const likes = review.likes.filter((id) => id !== friendId)
-            if (like) likes.push(friendId)
-            return { ...review, likes }
-          }),
-        },
-        true,
-      )
+      let next: ShelfData = {
+        ...current,
+        reviews: current.reviews.map((review) => {
+          if (review.id !== reviewId) return review
+          const likes = review.likes.filter((id) => id !== friendId)
+          if (like) likes.push(friendId)
+          return { ...review, likes }
+        }),
+      }
+      const review = current.reviews.find((item) => item.id === reviewId)
+      const built = review ? likeNotice(review, friendId, Date.now()) : null
+      if (built) {
+        next = like
+          ? withNotification(next, built.recipientId, built.notice)
+          : withoutNotification(next, built.recipientId, built.notice.id)
+      }
+      persist(next, true)
     },
-    async setNudge(bookId, friendId) {
+    async setNudge(bookId, friendId, at) {
       const ids = current.nudges[bookId] ?? []
       if (ids.includes(friendId)) return
-      persist({ ...current, nudges: { ...current.nudges, [bookId]: [...ids, friendId] } }, true)
+      let next: ShelfData = { ...current, nudges: { ...current.nudges, [bookId]: [...ids, friendId] } }
+      const built = nudgeNotice(current.reading[bookId], bookId, friendId, at)
+      if (built) next = withNotification(next, built.recipientId, built.notice)
+      persist(next, true)
     },
     async clearNudges(bookId) {
       const nudges = { ...current.nudges }
@@ -526,6 +591,9 @@ function createDemoRepo(): ShelfRepository {
         },
         true,
       )
+    },
+    async markNotificationsRead(friendId, ids) {
+      persist(readNotifications(current, friendId, ids), true)
     },
     async clearBooks() {
       persist(
