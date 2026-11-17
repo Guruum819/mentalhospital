@@ -13,6 +13,7 @@ import { BookDetail } from '@/components/book-detail'
 import { BookDialog } from '@/components/book-dialog'
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import { NotificationsPage } from '@/components/notifications-page'
+import { OpeningBook } from '@/components/opening-book'
 import { ProfileGate } from '@/components/profile-gate'
 import { ProfilePage } from '@/components/profile-page'
 import { SettingsPage } from '@/components/settings-page'
@@ -100,8 +101,12 @@ export function ShelfScreen() {
 
   if (!shelf.ready) {
     return (
-      <main className="grid min-h-dvh place-items-center px-6 text-center">
+      <main
+        aria-busy="true"
+        className="grid min-h-dvh place-items-center px-6 pt-[max(1.5rem,env(safe-area-inset-top))] pb-[max(1.5rem,env(safe-area-inset-bottom))] text-center"
+      >
         <div>
+          <OpeningBook />
           <p className="text-xl font-bold">서재를 여는 중</p>
         </div>
       </main>
