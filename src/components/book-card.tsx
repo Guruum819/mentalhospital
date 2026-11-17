@@ -111,7 +111,7 @@ export function BookCard({
 
   return (
     <article
-      className={`min-w-0 border-b border-border px-4 py-3 ${onOpen ? 'cursor-pointer active:bg-muted/70' : ''}`}
+      className={`min-w-0 border-b border-border px-4 py-4 ${onOpen ? 'cursor-pointer active:bg-muted/70' : ''}`}
       onClick={(event) => {
         if (!onOpen) return
         const target = event.target
@@ -119,31 +119,38 @@ export function BookCard({
         onOpen(book.id)
       }}
     >
-      <div className="grid grid-cols-[auto_minmax(0,1fr)] items-stretch gap-3">
-        <div className="h-full">
-          <div className="relative h-full overflow-hidden rounded-md [aspect-ratio:2/3]">
-          {book.coverUrl && !brokenCover ? (
-            <img
-              src={book.coverUrl}
-              alt=""
-              referrerPolicy="no-referrer"
-              className="absolute inset-0 h-full w-full object-cover"
-              onError={() => setBrokenCover(true)}
-            />
-          ) : (
-            <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-muted text-muted-foreground">
-              <ImageOff className="size-4" />
-              <span className="px-1 text-center text-[11px] leading-tight">표지가 없어용</span>
-            </div>
-          )}
+      <div className="flex items-start gap-3">
+        <div className="w-[100px] shrink-0">
+          <div className="relative aspect-[2/3] overflow-hidden rounded-md border border-border shadow-sm">
+            {book.coverUrl && !brokenCover ? (
+              <img
+                src={book.coverUrl}
+                alt=""
+                referrerPolicy="no-referrer"
+                className="absolute inset-0 h-full w-full object-cover"
+                onError={() => setBrokenCover(true)}
+              />
+            ) : (
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-muted text-muted-foreground">
+                <ImageOff className="size-4" />
+                <span className="px-1 text-center text-[11px] leading-tight">표지가 없어용</span>
+              </div>
+            )}
           </div>
         </div>
 
         <div className="min-w-0 flex-1">
           <div className="flex items-start gap-2">
-            <h2 data-testid="book-title" className="line-clamp-2 min-w-0 flex-1 break-keep text-[17px] leading-snug font-bold tracking-tight">
-              {book.title}
-            </h2>
+            <div className="min-w-0 flex-1">
+              {transfer ? (
+                <p data-testid="pending-pass" className="mb-1 line-clamp-2 text-[12px] font-medium leading-snug text-muted-foreground">
+                  {pendingPassLine(pendingName ?? '친구')}
+                </p>
+              ) : null}
+              <h2 data-testid="book-title" className="line-clamp-2 break-keep text-[17px] leading-snug font-bold tracking-tight">
+                {book.title}
+              </h2>
+            </div>
             {(me && !mineRead) || book.buyerId === meId ? (
               <div className="flex h-8 shrink-0 items-center justify-end gap-1">
                 {me && !mineRead ? <QueuePill bookId={book.id} meId={meId} /> : null}
@@ -153,7 +160,13 @@ export function BookCard({
               </div>
             ) : null}
           </div>
-          <div className="mt-1">
+          <p className="mt-1 truncate text-[14px] text-muted-foreground">{book.author || '저자 미상'}</p>
+          {average !== null ? (
+            <div className="mt-1.5">
+              <StarRating value={average} readOnly size="sm" />
+            </div>
+          ) : null}
+          <div className="mt-2">
             <p data-testid="book-holder" className="text-[13px] text-muted-foreground">
               {holder ? (
                 <>
@@ -167,11 +180,6 @@ export function BookCard({
                 '지금 갖고 있는 사람이 없어용'
               )}
             </p>
-            {transfer ? (
-              <p data-testid="pending-pass" className="mt-0.5 text-[13px] font-medium text-foreground">
-                {pendingPassLine(pendingName ?? '친구')}
-              </p>
-            ) : null}
             <CardActions
               holding={holding}
               transfer={transfer}
@@ -183,12 +191,6 @@ export function BookCard({
               onDecline={() => void shelf.declineOffer(book.id)}
             />
           </div>
-          <p className="mt-2 truncate text-[15px] text-muted-foreground">{book.author || '저자 미상'}</p>
-          {average !== null ? (
-            <div className="mt-1">
-              <StarRating value={average} readOnly size="sm" />
-            </div>
-          ) : null}
           <div className="mt-2 flex items-center gap-2 text-[15px]">
             {buyer ? (
               <button
