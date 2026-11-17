@@ -1,10 +1,24 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { formatBuildLabel, isNewerBuild } from '../src/lib/app-build.ts'
+import { buildsDiffer, fieldBlocksReload, formatBuildLabel, isNewerBuild } from '../src/lib/app-build.ts'
 
 test('build label uses Seoul time', () => {
   assert.equal(formatBuildLabel('2026-11-17T05:10:00.000Z'), '11월 17일 14:10')
   assert.equal(formatBuildLabel('not-a-date'), '')
+})
+
+test('a different deploy is not the running build', () => {
+  assert.equal(buildsDiffer('2026-11-17T05:10:00.000Z', '2026-11-17T05:10:00.000Z'), false)
+  assert.equal(buildsDiffer('2026-11-17T05:10:00.000Z', '2026-11-17T06:00:00.000Z'), true)
+  assert.equal(buildsDiffer('', '2026-11-17T06:00:00.000Z'), false)
+})
+
+test('typing or a filled composer holds the reload', () => {
+  assert.equal(fieldBlocksReload({ tagName: 'textarea', value: '' }, true), true)
+  assert.equal(fieldBlocksReload({ tagName: 'textarea', value: '초안' }, false), true)
+  assert.equal(fieldBlocksReload({ tagName: 'textarea', value: '   ' }, false), false)
+  assert.equal(fieldBlocksReload({ tagName: 'input', type: 'checkbox', value: 'on' }, true), false)
+  assert.equal(fieldBlocksReload({ tagName: 'input', type: 'text', value: '' }, false), false)
 })
 
 test('a later deploy counts as a newer build', () => {

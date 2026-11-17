@@ -1,7 +1,13 @@
-import { Component, type ReactNode } from 'react'
+import { Component, useEffect, type ReactNode } from 'react'
 import { Toaster } from '@/components/ui/sonner'
 import { ShelfScreen } from '@/components/shelf-screen'
+import { startAutoUpdate } from '@/lib/app-build'
 import { ShelfProvider } from '@/lib/store'
+
+function DeployWatcher() {
+  useEffect(() => startAutoUpdate(), [])
+  return null
+}
 
 class AppErrorBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
   state = { failed: false }
@@ -32,6 +38,7 @@ export default function App() {
     <AppErrorBoundary>
       <ShelfProvider>
         <ShelfScreen />
+        <DeployWatcher />
         <Toaster position="top-center" />
       </ShelfProvider>
     </AppErrorBoundary>
