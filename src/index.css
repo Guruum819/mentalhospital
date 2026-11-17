@@ -73,7 +73,7 @@
     --chart-3: #0f1419;
     --chart-4: #eff3f4;
     --chart-5: #f7f9f9;
-    --radius: 999px;
+    --radius: 12px;
     --sidebar: #ffffff;
     --sidebar-foreground: #0f1419;
     --sidebar-primary: #1d9bf0;
@@ -143,4 +143,20 @@ button,
 #root {
   min-height: 100dvh;
   overflow-x: hidden;
+}
+
+[data-slot='dialog-content'],
+[data-slot='alert-dialog-content'] {
+  top: auto;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  max-width: 100%;
+  transform: none;
+  border-radius: 16px 16px 0 0;
+  max-height: min(92dvh, 100%);
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding-bottom: max(1rem, env(safe-area-inset-bottom));
 }

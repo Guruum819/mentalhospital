@@ -97,8 +97,8 @@ export function BookDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex max-h-[92dvh] w-full flex-col gap-0 overflow-hidden p-0">
-        <DialogHeader className="px-4 pt-4 pr-12">
+      <DialogContent className="flex max-h-[min(92dvh,100%)] w-full max-w-full flex-col gap-0 overflow-x-hidden p-0">
+        <DialogHeader className="shrink-0 px-4 pt-3 pr-14">
           <DialogTitle>{book ? '책 수정' : '책 추가'}</DialogTitle>
           <DialogDescription>
             {book

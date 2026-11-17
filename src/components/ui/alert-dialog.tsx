@@ -45,6 +45,7 @@ function AlertDialogOverlay({
 function AlertDialogContent({
   className,
   size = "default",
+  children,
   ...props
 }: React.ComponentProps<typeof AlertDialogPrimitive.Content> & {
   size?: "default" | "sm"
@@ -56,11 +57,14 @@ function AlertDialogContent({
         data-slot="alert-dialog-content"
         data-size={size}
         className={cn(
-          "group/alert-dialog-content fixed inset-x-0 bottom-0 z-50 grid w-full gap-4 rounded-t-2xl bg-popover p-4 pb-[max(1rem,env(safe-area-inset-bottom))] text-popover-foreground outline-none",
+          "group/alert-dialog-content fixed inset-x-0 bottom-0 z-50 grid w-full max-w-full gap-4 overflow-x-hidden overflow-y-auto rounded-t-[16px] rounded-b-none bg-popover p-4 pt-2 pb-[max(1rem,env(safe-area-inset-bottom))] text-popover-foreground outline-none",
           className
         )}
         {...props}
-      />
+      >
+        <div className="mx-auto h-1 w-10 rounded-full bg-border" aria-hidden />
+        {children}
+      </AlertDialogPrimitive.Content>
     </AlertDialogPortal>
   )
 }

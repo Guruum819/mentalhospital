@@ -8,6 +8,7 @@ import {
   hitsFromWiki,
   httpsUrl,
   stripHtml,
+  titleForHangulQuery,
   type BookHit,
 } from '../src/lib/book-search.ts'
 import { cleanBirthday, cleanReview, findProfile, sameIdentity, toggledRead } from '../src/lib/model.ts'
@@ -92,4 +93,9 @@ test('Hangul search prefers the Korean title and keeps a cover', () => {
   assert.equal(hits[0]?.title, '작별하지 않는다')
   assert.equal(hits[0]?.author, '한강')
   assert.equal(hits[0]?.coverUrl, romanized.coverUrl)
+  assert.equal(titleForHangulQuery('Chakpyŏl haji annŭnda', '작별하지 않는다'), '작별하지 않는다')
+  assert.equal(titleForHangulQuery('Demian', '작별하지 않는다'), 'Demian')
+  const onlyRomanized = combineBookHits({ openlibrary: [romanized] }, '작별하지 않는다')
+  assert.equal(onlyRomanized[0]?.title, '작별하지 않는다')
+  assert.equal(onlyRomanized[0]?.coverUrl, romanized.coverUrl)
 })

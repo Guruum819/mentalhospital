@@ -128,9 +128,73 @@ function withBorrowedCover(wiki: BookHit[], openlibrary: BookHit[], query: strin
   return next
 }
 
-function koreanizeSingle(hits: BookHit[], query: string): BookHit[] {
-  if (!hasHangul(query) || hits.length !== 1 || hasHangul(hits[0]?.title ?? '')) return hits
-  return [{ ...hits[0], title: query.trim() }]
+const CHO_RR = ['g', 'kk', 'n', 'd', 'tt', 'r', 'm', 'b', 'pp', 's', 'ss', '', 'j', 'jj', 'ch', 'k', 't', 'p', 'h']
+const JUNG_RR = ['a', 'ae', 'ya', 'yae', 'eo', 'e', 'yeo', 'ye', 'o', 'wa', 'wae', 'oe', 'yo', 'u', 'wo', 'we', 'wi', 'yu', 'eu', 'ui', 'i']
+const JONG_RR = ['', 'k', 'k', 'ks', 'n', 'nj', 'nh', 't', 'l', 'lk', 'lm', 'lb', 'ls', 'lt', 'lp', 'lh', 'm', 'p', 'ps', 't', 't', 'ng', 't', 't', 'k', 't', 'p', 'h']
+const CHO_MR = ['k', 'kk', 'n', 't', 'tt', 'r', 'm', 'p', 'pp', 's', 'ss', '', 'ch', 'tch', 'ch', 'k', 't', 'p', 'h']
+const JUNG_MR = ['a', 'ae', 'ya', 'yae', 'o', 'e', 'yo', 'ye', 'o', 'wa', 'wae', 'oe', 'yo', 'u', 'wo', 'we', 'wi', 'yu', 'u', 'ui', 'i']
+const JONG_MR = ['', 'k', 'k', 'k', 'n', 'n', 'n', 't', 'l', 'k', 'm', 'p', 'l', 'l', 'l', 'l', 'm', 'p', 'p', 't', 't', 'ng', 't', 't', 'k', 't', 'p', 'h']
+
+function romanizeHangul(text: string, style: 'rr' | 'mr'): string {
+  const cho = style === 'rr' ? CHO_RR : CHO_MR
+  const jung = style === 'rr' ? JUNG_RR : JUNG_MR
+  const jong = style === 'rr' ? JONG_RR : JONG_MR
+  let out = ''
+  for (const char of text) {
+    const code = char.codePointAt(0) ?? 0
+    if (code < 0xac00 || code > 0xd7a3) continue
+    const syllable = code - 0xac00
+    out += cho[Math.floor(syllable / 588)]
+    out += jung[Math.floor((syllable % 588) / 28)]
+    out += jong[syllable % 28]
+  }
+  return out
+}
+
+function foldLatin(value: string): string {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z]/g, '')
+}
+
+function editDistance(left: string, right: string): number {
+  const rows = Array.from({ length: left.length + 1 }, (_, index) => [index])
+  for (let col = 1; col <= right.length; col += 1) rows[0][col] = col
+  for (let row = 1; row <= left.length; row += 1) {
+    for (let col = 1; col <= right.length; col += 1) {
+      const cost = left[row - 1] === right[col - 1] ? 0 : 1
+      rows[row][col] = Math.min(rows[row - 1][col] + 1, rows[row][col - 1] + 1, rows[row - 1][col - 1] + cost)
+    }
+  }
+  return rows[left.length][right.length]
+}
+
+function romanizationsMatch(query: string, title: string): boolean {
+  const folded = foldLatin(title.split('/')[0] ?? title)
+  if (folded.length < 4) return false
+  for (const style of ['rr', 'mr'] as const) {
+    const romanized = foldLatin(romanizeHangul(query, style))
+    if (!romanized) continue
+    if (romanized === folded || romanized.includes(folded) || folded.includes(romanized)) return true
+    const distance = editDistance(romanized, folded)
+    if (1 - distance / Math.max(romanized.length, folded.length) >= 0.72) return true
+  }
+  return false
+}
+
+export function titleForHangulQuery(title: string, query: string): string {
+  const typed = query.trim()
+  if (!hasHangul(typed) || hasHangul(title)) return title
+  return romanizationsMatch(typed, title) ? typed : title
+}
+
+function withQueryTitles(hits: BookHit[], query: string): BookHit[] {
+  return hits.map((hit) => {
+    const title = titleForHangulQuery(hit.title, query)
+    return title === hit.title ? hit : { ...hit, title }
+  })
 }
 
 export function combineBookHits(
@@ -139,8 +203,10 @@ export function combineBookHits(
 ): BookHit[] {
   const openlibrary = input.openlibrary ?? []
   const wiki = withBorrowedCover(input.wiki ?? [], openlibrary, query)
-  const library = wiki.some((hit) => hasHangul(hit.title)) ? openlibrary : koreanizeSingle(openlibrary, query)
-  return orderHits([...(input.kakao ?? []), ...(input.google ?? []), ...wiki, ...library], query)
+  return orderHits(
+    withQueryTitles([...(input.kakao ?? []), ...(input.google ?? []), ...wiki, ...openlibrary], query),
+    query,
+  )
 }
 
 export function hitsFromKakao(payload: unknown): BookHit[] {
