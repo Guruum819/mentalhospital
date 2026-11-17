@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react'
-import { Loader2 } from 'lucide-react'
-import { searchBooks, type BookHit } from '@/lib/book-search'
+import { useEffect, useRef, useState, type RefObject } from 'react'
+import { ImageOff, Loader2 } from 'lucide-react'
+import { searchBooks, searchCovers, type BookHit } from '@/lib/book-search'
+import { compressCover } from '@/lib/cover-image'
 import { readWho } from '@/lib/identity'
 import { useShelf } from '@/lib/store'
 import type { Book } from '@/lib/types'
@@ -35,7 +36,11 @@ export function BookDialog({
   const [manual, setManual] = useState(false)
   const [title, setTitle] = useState('')
   const [author, setAuthor] = useState('')
+  const [coverUrl, setCoverUrl] = useState<string | null>(null)
+  const [covers, setCovers] = useState<BookHit[]>([])
+  const [coverBusy, setCoverBusy] = useState(false)
   const [pendingId, setPendingId] = useState<string | null>(null)
+  const fileRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     if (!open) return
@@ -46,6 +51,9 @@ export function BookDialog({
     setManual(Boolean(book))
     setTitle(book?.title ?? '')
     setAuthor(book?.author ?? '')
+    setCoverUrl(book?.coverUrl ?? null)
+    setCovers([])
+    setCoverBusy(false)
     setPendingId(null)
   }, [open, book])
 
@@ -102,7 +110,7 @@ export function BookDialog({
           <DialogTitle>{book ? '책 수정' : '책 추가'}</DialogTitle>
           <DialogDescription>
             {book
-              ? '제목이랑 저자를 고쳐용. 구매자는 이 책을 올린 사람이에용.'
+              ? '제목, 저자, 표지를 고쳐용. 구매자는 이 책을 올린 사람이에용.'
               : '제목을 입력하면 표지랑 같이 목록이 나와용. 고르면 내가 구매자가 돼용.'}
           </DialogDescription>
         </DialogHeader>
@@ -112,7 +120,7 @@ export function BookDialog({
               className="space-y-3"
               onSubmit={(event) => {
                 event.preventDefault()
-                void shelf.updateBook(book.id, { title, author, coverUrl: book.coverUrl, buyerId: book.buyerId }).then((ok) => {
+                void shelf.updateBook(book.id, { title, author, coverUrl, buyerId: book.buyerId }).then((ok) => {
                   if (ok) onOpenChange(false)
                 })
               }}
@@ -125,6 +133,42 @@ export function BookDialog({
                 <Label htmlFor="edit-author">저자</Label>
                 <Input id="edit-author" value={author} onChange={(event) => setAuthor(event.target.value)} className={fieldClass} />
               </div>
+              <CoverEditor
+                title={title}
+                coverUrl={coverUrl}
+                covers={covers}
+                busy={coverBusy}
+                fileRef={fileRef}
+                onCover={setCoverUrl}
+                onSearch={() => {
+                  const q = title.trim()
+                  if (q.length < 2) return
+                  const controller = new AbortController()
+                  setCoverBusy(true)
+                  void searchCovers(q, controller.signal)
+                    .then((next) => {
+                      setCovers(next)
+                      setCoverBusy(false)
+                    })
+                    .catch(() => {
+                      if (controller.signal.aborted) return
+                      setCovers([])
+                      setCoverBusy(false)
+                    })
+                }}
+                onFile={async (file) => {
+                  if (!file) return
+                  setCoverBusy(true)
+                  try {
+                    setCoverUrl(await compressCover(file))
+                  } catch {
+                    setWarning('이 사진은 올리지 못했어용. 다른 사진을 골라 주세용.')
+                  } finally {
+                    setCoverBusy(false)
+                  }
+                }}
+              />
+              {warning ? <p className="text-sm text-destructive">{warning}</p> : null}
               <Button type="submit" className="h-12 w-full text-base">저장</Button>
             </form>
           ) : (
@@ -215,5 +259,75 @@ export function BookDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  )
+}
+
+function CoverEditor({
+  title,
+  coverUrl,
+  covers,
+  busy,
+  fileRef,
+  onCover,
+  onSearch,
+  onFile,
+}: {
+  title: string
+  coverUrl: string | null
+  covers: BookHit[]
+  busy: boolean
+  fileRef: RefObject<HTMLInputElement | null>
+  onCover: (url: string | null) => void
+  onSearch: () => void
+  onFile: (file: File | undefined) => void
+}) {
+  return (
+    <div className="space-y-2">
+      <Label>표지</Label>
+      <div className="flex items-start gap-3">
+        {coverUrl ? (
+          <img src={coverUrl} alt="" referrerPolicy="no-referrer" className="h-24 w-16 rounded-md object-cover" />
+        ) : (
+          <span className="grid h-24 w-16 place-items-center rounded-md bg-muted text-muted-foreground">
+            <ImageOff className="size-4" />
+          </span>
+        )}
+        <div className="grid min-w-0 flex-1 gap-2">
+          <Button type="button" variant="outline" className="h-11" disabled={busy || title.trim().length < 2} onClick={onSearch}>
+            {busy ? '찾는 중' : '표지 찾기'}
+          </Button>
+          <Button type="button" variant="outline" className="h-11" disabled={busy} onClick={() => fileRef.current?.click()}>
+            앨범에서 올리기
+          </Button>
+          <Button type="button" variant="outline" className="h-11" disabled={!coverUrl} onClick={() => onCover(null)}>
+            표지 없애기
+          </Button>
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(event) => {
+              onFile(event.target.files?.[0])
+              event.target.value = ''
+            }}
+          />
+        </div>
+      </div>
+      {covers.length > 0 ? (
+        <div className="grid grid-cols-3 gap-2">
+          {covers.map((hit) => (
+            <button
+              key={hit.coverUrl}
+              type="button"
+              className={`overflow-hidden rounded-md ring-offset-2 ${coverUrl === hit.coverUrl ? 'ring-2 ring-foreground' : ''}`}
+              onClick={() => onCover(hit.coverUrl)}
+            >
+              <img src={hit.coverUrl ?? ''} alt={hit.title} referrerPolicy="no-referrer" className="aspect-[2/3] w-full object-cover" />
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
   )
 }

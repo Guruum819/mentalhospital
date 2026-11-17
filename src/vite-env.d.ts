@@ -9,6 +9,7 @@ interface ImportMetaEnv {
   readonly VITE_FIREBASE_EMULATOR?: string
   readonly VITE_KAKAO_REST_API_KEY?: string
   readonly VITE_GOOGLE_BOOKS_API_KEY?: string
+  readonly VITE_DEMO?: string
 }
 
 interface ImportMeta {

@@ -1,11 +1,20 @@
+import { useState, type FormEvent } from 'react'
 import { ChevronLeft } from 'lucide-react'
+import { readWho } from '@/lib/identity'
+import { MAX_REVIEW } from '@/lib/model'
+import { PATCH_NOTES, formatPatchDate } from '@/lib/patch-notes'
+import { useShelf } from '@/lib/store'
+import { Avatar } from '@/components/avatar-editor'
+import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 
 export function SettingsPage({
   onBack,
   onSwitch,
   onLogout,
   onDelete,
-  onPasscode,
   onGuide,
   onClearBooks,
 }: {
@@ -13,10 +22,16 @@ export function SettingsPage({
   onSwitch: () => void
   onLogout: () => void
   onDelete: () => void
-  onPasscode: () => void
   onGuide: () => void
   onClearBooks: () => void
 }) {
+  const shelf = useShelf()
+  const [adminOpen, setAdminOpen] = useState(false)
+
+  if (adminOpen) {
+    return <AdminScreen onBack={() => setAdminOpen(false)} onClearBooks={onClearBooks} />
+  }
+
   return (
     <div className="min-h-dvh bg-background">
       <header className="sticky top-0 z-20 border-b border-border bg-background/80 backdrop-blur-md pt-[env(safe-area-inset-top)]">
@@ -31,11 +46,33 @@ export function SettingsPage({
         <SettingsRow label="계정 전환" detail="이름이랑 생일로 다른 프로필에 들어가용" onClick={onSwitch} />
         <SettingsRow label="로그아웃" detail="이 폰에서 이 계정만 빠져용" onClick={onLogout} />
         <SettingsRow label="계정 삭제" detail="읽은 기록이랑 읽는 중, 한 줄 평은 사라져용. 올린 책은 남아용." danger onClick={onDelete} />
-        <SettingsRow label="그룹 암호" onClick={onPasscode} />
         <SettingsRow label="사용 안내" onClick={onGuide} />
-        <SettingsRow label="책 비우기" detail="프로필은 두고 책만 지워용" onClick={onClearBooks} />
       </div>
-      <p className="px-4 py-6 text-center text-xs text-muted-foreground">모임은 10명까지예용.</p>
+      <section className="border-t border-border px-4 py-4">
+        <h2 className="text-[17px] font-bold">패치노트</h2>
+        <div className="mt-3 space-y-4">
+          {PATCH_NOTES.map((note) => (
+            <div key={note.date}>
+              <h3 className="text-[15px] font-bold">{formatPatchDate(note.date)}</h3>
+              <ul className="mt-1 space-y-1">
+                {note.lines.map((line) => (
+                  <li key={line} className="text-[15px] leading-snug text-foreground">
+                    {line}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+      </section>
+      <RequestBoard />
+      <div className="px-4 py-6 text-center">
+        <p className="text-xs text-muted-foreground">모임은 10명까지예용.</p>
+        {shelf.admin ? <p className="mt-2 text-xs font-bold">관리자로 보는 중</p> : null}
+        <button type="button" className="mt-3 text-xs text-muted-foreground underline" onClick={() => setAdminOpen(true)}>
+          관리자
+        </button>
+      </div>
     </div>
   )
 }
@@ -60,5 +97,287 @@ function SettingsRow({
       <span className="text-base font-medium">{label}</span>
       {detail ? <span className="text-sm text-muted-foreground">{detail}</span> : null}
     </button>
+  )
+}
+
+function RequestBoard() {
+  const shelf = useShelf()
+  const [text, setText] = useState('')
+  const [anonymous, setAnonymous] = useState(false)
+  const [replyTo, setReplyTo] = useState<string | null>(null)
+  const [reply, setReply] = useState('')
+  const [pending, setPending] = useState(false)
+  const meId = readWho()
+  const chars = Array.from(text).length
+
+  async function submit(event: FormEvent) {
+    event.preventDefault()
+    if (pending || !text.trim() || chars > MAX_REVIEW) return
+    setPending(true)
+    const ok = await shelf.addRequest(text, anonymous)
+    setPending(false)
+    if (ok) {
+      setText('')
+      setAnonymous(false)
+    }
+  }
+
+  return (
+    <section className="border-t border-border">
+      <div className="px-4 py-4">
+        <h2 className="text-[17px] font-bold">이거 수정해 주세요!</h2>
+        <p className="mt-1 text-sm text-muted-foreground">고치고 싶은 점을 짧게 남겨 주세용. 답글은 관리자만 달아용.</p>
+      </div>
+      <form onSubmit={submit} className="border-b border-border px-4 pb-4">
+        <textarea
+          value={text}
+          onChange={(event) => setText(event.target.value)}
+          maxLength={MAX_REVIEW}
+          rows={3}
+          placeholder="이렇게 바꿔 주세용"
+          className="w-full resize-none bg-transparent text-[17px] outline-none placeholder:text-muted-foreground"
+        />
+        <div className="mt-2 flex items-center justify-between gap-3">
+          <label className="flex items-center gap-2 text-sm">
+            <Checkbox checked={anonymous} onCheckedChange={(value) => setAnonymous(value === true)} />
+            익명으로 쓰기
+          </label>
+          <span className="text-[13px] tabular-nums text-muted-foreground">
+            {chars}/{MAX_REVIEW}
+          </span>
+        </div>
+        <Button type="submit" className="mt-3 h-11 w-full bg-x text-x-ink hover:bg-x/90" disabled={pending || !text.trim() || chars > MAX_REVIEW}>
+          올리기
+        </Button>
+      </form>
+      <ul>
+        {shelf.data.posts.length === 0 ? (
+          <li className="px-4 py-8 text-[15px] text-muted-foreground">아직 요청이 없어용.</li>
+        ) : (
+          shelf.data.posts.map((post) => {
+            const author = shelf.data.friends.find((friend) => friend.id === post.friendId)
+            const showName = shelf.admin || !post.anonymous
+            const mine = post.friendId === meId
+            return (
+              <li key={post.id} className="border-b border-border px-4 py-3">
+                <div className="flex gap-3">
+                  {showName ? (
+                    <Avatar name={author?.name ?? '?'} photo={author?.photo ?? null} size={40} />
+                  ) : (
+                    <span className="grid size-10 shrink-0 place-items-center rounded-full bg-muted text-sm font-bold text-muted-foreground">익</span>
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-baseline gap-2">
+                      <p className="truncate text-[15px] font-bold">{showName ? (author?.name ?? '알 수 없어용') : '익명'}</p>
+                      {post.done ? <span className="shrink-0 rounded-full bg-foreground px-2 py-0.5 text-[12px] font-bold text-background">완료</span> : null}
+                    </div>
+                    {shelf.admin && post.anonymous ? <p className="text-[13px] text-muted-foreground">멤버에게는 익명으로 보여용</p> : null}
+                    <p className="mt-1 text-[15px] leading-snug whitespace-pre-wrap">{post.text}</p>
+                    <div className="mt-1 flex flex-wrap gap-1">
+                      {shelf.admin ? (
+                        <button type="button" className="h-11 px-2 text-[15px] font-medium text-muted-foreground" onClick={() => setReplyTo(replyTo === post.id ? null : post.id)}>
+                          답글
+                        </button>
+                      ) : null}
+                      {shelf.admin ? (
+                        <button type="button" className="h-11 px-2 text-[15px] font-medium text-muted-foreground" onClick={() => void shelf.setRequestDone(post.id, !post.done)}>
+                          {post.done ? '완료 취소' : '완료'}
+                        </button>
+                      ) : null}
+                      {mine || shelf.admin ? (
+                        <button type="button" className="h-11 px-2 text-[15px] font-medium text-muted-foreground" onClick={() => void shelf.deleteRequest(post.id)}>
+                          삭제
+                        </button>
+                      ) : null}
+                    </div>
+                    {replyTo === post.id ? (
+                      <form
+                        className="mt-1"
+                        onSubmit={(event) => {
+                          event.preventDefault()
+                          void shelf.replyRequest(post.id, reply).then((ok) => {
+                            if (ok) {
+                              setReply('')
+                              setReplyTo(null)
+                            }
+                          })
+                        }}
+                      >
+                        <textarea
+                          value={reply}
+                          onChange={(event) => setReply(event.target.value)}
+                          maxLength={MAX_REVIEW}
+                          rows={2}
+                          placeholder="관리자 답글"
+                          className="w-full resize-none bg-transparent text-[15px] outline-none"
+                        />
+                        <Button type="submit" className="h-9 bg-x px-4 text-x-ink" disabled={!reply.trim()}>
+                          답글
+                        </Button>
+                      </form>
+                    ) : null}
+                    {post.replies.length > 0 ? (
+                      <ul className="mt-2 space-y-2 border-l border-border pl-3">
+                        {post.replies.map((item) => (
+                          <li key={item.id}>
+                            <p className="text-[15px] font-bold">
+                              <span className="rounded-full bg-foreground px-1.5 py-0.5 text-[11px] text-background">관리자</span>
+                            </p>
+                            <p className="text-[15px] leading-snug whitespace-pre-wrap">{item.text}</p>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : null}
+                  </div>
+                </div>
+              </li>
+            )
+          })
+        )}
+      </ul>
+    </section>
+  )
+}
+
+function AdminScreen({ onBack, onClearBooks }: { onBack: () => void; onClearBooks: () => void }) {
+  const shelf = useShelf()
+  const configured = Boolean(shelf.data.admin)
+  const pendingFriends = shelf.data.friends.filter((friend) => !friend.approved)
+
+  return (
+    <div className="min-h-dvh bg-background">
+      <header className="sticky top-0 z-20 border-b border-border bg-background/80 backdrop-blur-md pt-[env(safe-area-inset-top)]">
+        <div className="relative flex h-14 items-center">
+          <button type="button" className="grid size-11 place-items-center" onClick={onBack} aria-label="뒤로">
+            <ChevronLeft className="size-6" />
+          </button>
+          <h1 className="pointer-events-none absolute inset-x-14 text-center text-[17px] font-bold">관리자</h1>
+        </div>
+      </header>
+      <div className="px-4 py-4">
+        {!configured ? <AdminSetup /> : shelf.admin ? <AdminTools onClearBooks={onClearBooks} pending={pendingFriends} /> : <AdminLogin />}
+      </div>
+    </div>
+  )
+}
+
+function AdminSetup() {
+  const shelf = useShelf()
+  const [password, setPassword] = useState('')
+  const [again, setAgain] = useState('')
+  const [pending, setPending] = useState(false)
+
+  async function onSubmit(event: FormEvent) {
+    event.preventDefault()
+    setPending(true)
+    await shelf.setupAdmin(password, again)
+    setPending(false)
+  }
+
+  return (
+    <form onSubmit={onSubmit} className="grid gap-3">
+      <h2 className="text-xl font-bold">관리자 암호 만들기</h2>
+      <p className="text-sm text-muted-foreground">처음 한 번만 정해용. 가입 승인이랑 게시판 관리에 써용.</p>
+      <Input type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="새 암호" className="h-12 text-base" autoComplete="new-password" />
+      <Input type="password" value={again} onChange={(event) => setAgain(event.target.value)} placeholder="새 암호 확인" className="h-12 text-base" autoComplete="new-password" />
+      <Button type="submit" className="h-12 text-base" disabled={pending}>
+        암호 저장
+      </Button>
+    </form>
+  )
+}
+
+function AdminLogin() {
+  const shelf = useShelf()
+  const [password, setPassword] = useState('')
+  const [pending, setPending] = useState(false)
+
+  async function onSubmit(event: FormEvent) {
+    event.preventDefault()
+    setPending(true)
+    await shelf.loginAdmin(password)
+    setPending(false)
+  }
+
+  return (
+    <form onSubmit={onSubmit} className="grid gap-3">
+      <h2 className="text-xl font-bold">관리자 로그인</h2>
+      <p className="text-sm text-muted-foreground">관리자 암호를 입력해 주세용.</p>
+      <Label htmlFor="admin-password">암호</Label>
+      <Input id="admin-password" type="password" value={password} onChange={(event) => setPassword(event.target.value)} className="h-12 text-base" autoComplete="current-password" />
+      <Button type="submit" className="h-12 text-base" disabled={pending}>
+        들어가기
+      </Button>
+    </form>
+  )
+}
+
+function AdminTools({
+  onClearBooks,
+  pending,
+}: {
+  onClearBooks: () => void
+  pending: { id: string; name: string; birthday: string }[]
+}) {
+  const shelf = useShelf()
+  const [current, setCurrent] = useState('')
+  const [next, setNext] = useState('')
+  const [again, setAgain] = useState('')
+  const [busy, setBusy] = useState(false)
+
+  return (
+    <div className="grid gap-6">
+      <section>
+        <h2 className="text-[17px] font-bold">가입 신청</h2>
+        {pending.length === 0 ? (
+          <p className="mt-2 text-sm text-muted-foreground">기다리는 신청이 없어용.</p>
+        ) : (
+          <ul className="mt-2">
+            {pending.map((friend) => (
+              <li key={friend.id} className="flex items-center justify-between gap-3 border-b py-3">
+                <div className="min-w-0">
+                  <p className="truncate font-bold">{friend.name}</p>
+                  <p className="text-sm text-muted-foreground">{friend.birthday}</p>
+                </div>
+                <div className="flex shrink-0 gap-2">
+                  <Button type="button" className="h-11 px-3" onClick={() => void shelf.approveFriend(friend.id)}>
+                    승인
+                  </Button>
+                  <Button type="button" variant="outline" className="h-11 px-3" onClick={() => void shelf.removeFriend(friend.id)}>
+                    거절
+                  </Button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+      <section>
+        <h2 className="text-[17px] font-bold">책 비우기</h2>
+        <p className="mt-1 text-sm text-muted-foreground">프로필은 두고 책이랑 한 줄 평만 지워용.</p>
+        <Button type="button" variant="destructive" className="mt-3 h-12 w-full text-base" onClick={onClearBooks}>
+          책 비우기
+        </Button>
+      </section>
+      <form
+        className="grid gap-3"
+        onSubmit={(event) => {
+          event.preventDefault()
+          setBusy(true)
+          void shelf.changeAdmin(current, next, again).finally(() => setBusy(false))
+        }}
+      >
+        <h2 className="text-[17px] font-bold">암호 바꾸기</h2>
+        <Input type="password" value={current} onChange={(event) => setCurrent(event.target.value)} placeholder="지금 암호" className="h-12 text-base" autoComplete="current-password" />
+        <Input type="password" value={next} onChange={(event) => setNext(event.target.value)} placeholder="새 암호" className="h-12 text-base" autoComplete="new-password" />
+        <Input type="password" value={again} onChange={(event) => setAgain(event.target.value)} placeholder="새 암호 확인" className="h-12 text-base" autoComplete="new-password" />
+        <Button type="submit" className="h-12 text-base" disabled={busy}>
+          암호 저장
+        </Button>
+      </form>
+      <Button type="button" variant="outline" className="h-12 text-base" onClick={shelf.logoutAdmin}>
+        관리자 로그아웃
+      </Button>
+    </div>
   )
 }

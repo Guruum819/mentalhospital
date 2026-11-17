@@ -8,9 +8,9 @@ import {
   type Database,
 } from 'firebase/database'
 import { emulatorAddress, readFirebaseConfig } from './config.ts'
-import { booksRecord, friendsRecord, fromFirebase, fromPersisted, reviewsRecord, toPersisted } from './model.ts'
-import { clearedBooks, starterFirebaseUpdate, starterShelf } from './seed.ts'
-import type { Book, Friend, Review, ShelfData, SyncMode } from './types.ts'
+import { fromFirebase, fromPersisted, toPersisted } from './model.ts'
+import { starterFirebaseUpdate, starterShelf } from './seed.ts'
+import type { AdminLock, BoardPost, BoardReply, Book, Friend, Review, ShelfData, SyncMode } from './types.ts'
 
 const STORAGE_KEY = 'exchange-reading-v2'
 const EMULATOR_FLAG = '__exchangeReadingEmulator'
@@ -27,8 +27,19 @@ export interface ShelfRepository {
   setRead: (bookId: string, friendId: string, read: boolean, clearReading: boolean) => Promise<void>
   setReading: (bookId: string, friendId: string | null) => Promise<void>
   addReview: (review: Review) => Promise<void>
+  updateReview: (reviewId: string, text: string, editedAt: number) => Promise<void>
   deleteReview: (reviewId: string) => Promise<void>
-  replaceShelf: (data: ShelfData) => Promise<void>
+  setReviewLike: (reviewId: string, friendId: string, like: boolean) => Promise<void>
+  setNudge: (bookId: string, friendId: string, at: number) => Promise<void>
+  clearNudges: (bookId: string) => Promise<void>
+  setQueue: (bookId: string, friendId: string, at: number | null) => Promise<void>
+  saveAdmin: (admin: AdminLock) => Promise<void>
+  addRequest: (post: BoardPost) => Promise<void>
+  deleteRequest: (postId: string) => Promise<void>
+  setRequestDone: (postId: string, done: boolean) => Promise<void>
+  addRequestReply: (postId: string, reply: BoardReply) => Promise<void>
+  /** Deletes books, reads, reviews, nudges, and queues. Leaves friends and board posts alone. */
+  clearBooks: () => Promise<void>
 }
 
 function database(): Database {
@@ -49,9 +60,49 @@ async function write(values: Record<string, unknown>) {
   await update(ref(database()), values)
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === 'object' && !Array.isArray(value)
+}
+
+/** Existing members have no approved flag. Write only that field so other profile data stays. */
+function approvalPatch(raw: unknown, friendIds: ReadonlySet<string>): Record<string, unknown> {
+  if (!isRecord(raw) || !isRecord(raw.friends)) return {}
+  const patch: Record<string, unknown> = {}
+  for (const [id, value] of Object.entries(raw.friends)) {
+    if (!friendIds.has(id) || !isRecord(value) || 'approved' in value) continue
+    patch[`friends/${id}/approved`] = true
+  }
+  return patch
+}
+
+function reviewPayload(review: Review) {
+  return {
+    bookId: review.bookId,
+    friendId: review.friendId,
+    text: review.text,
+    createdAt: review.createdAt,
+    rating: review.rating,
+    parentId: review.parentId,
+    editedAt: review.editedAt,
+    likes: Object.fromEntries(review.likes.map((id) => [id, true])),
+  }
+}
+
+function requestPayload(post: BoardPost) {
+  return {
+    friendId: post.friendId,
+    anonymous: post.anonymous,
+    text: post.text,
+    createdAt: post.createdAt,
+    done: post.done,
+    replies: Object.fromEntries(post.replies.map((reply) => [reply.id, { text: reply.text, createdAt: reply.createdAt }])),
+  }
+}
+
 function createFirebaseRepo(): ShelfRepository {
   let current = starterShelf()
   let seeding = false
+  const migrated = new Set<string>()
 
   return {
     mode: 'firebase',
@@ -62,7 +113,8 @@ function createFirebaseRepo(): ShelfRepository {
       const unsubData = onValue(
         ref(db),
         (snap) => {
-          const data = fromFirebase(snap.val())
+          const raw: unknown = snap.val()
+          const data = fromFirebase(raw)
           if (!data.initialized && data.friends.length === 0 && data.books.length === 0) {
             if (!seeding) {
               seeding = true
@@ -74,8 +126,23 @@ function createFirebaseRepo(): ShelfRepository {
             }
             return
           }
-          if (!data.initialized) {
-            void write({ 'settings/initialized': true }).catch(() => undefined)
+          const patch: Record<string, unknown> = {}
+          if (!data.initialized) patch['settings/initialized'] = true
+          const approvals = approvalPatch(raw, new Set(data.friends.map((friend) => friend.id)))
+          for (const [path, value] of Object.entries(approvals)) {
+            const id = path.split('/')[1] ?? ''
+            if (!migrated.has(id)) {
+              migrated.add(id)
+              patch[path] = value
+            }
+          }
+          if (Object.keys(patch).length > 0) {
+            void write(patch).catch(() => {
+              for (const path of Object.keys(approvals)) {
+                const id = path.split('/')[1] ?? ''
+                migrated.delete(id)
+              }
+            })
           }
           current = data.initialized ? data : { ...data, initialized: true }
           seen = true
@@ -100,6 +167,7 @@ function createFirebaseRepo(): ShelfRepository {
           color: friend.color,
           photo: friend.photo ?? '',
           birthday: friend.birthday,
+          approved: friend.approved,
         },
       })
     },
@@ -109,8 +177,26 @@ function createFirebaseRepo(): ShelfRepository {
       for (const [bookId, readerId] of Object.entries(current.reading)) {
         if (readerId === friendId) values[`reading/${bookId}`] = null
       }
+      const removed = new Set<string>()
       for (const review of current.reviews) {
-        if (review.friendId === friendId) values[`reviews/${review.id}`] = null
+        if (review.friendId === friendId) {
+          values[`reviews/${review.id}`] = null
+          removed.add(review.id)
+        } else if (review.likes.includes(friendId)) {
+          values[`reviews/${review.id}/likes/${friendId}`] = null
+        }
+      }
+      for (const review of current.reviews) {
+        if (review.parentId && removed.has(review.parentId)) values[`reviews/${review.id}`] = null
+      }
+      for (const post of current.posts) {
+        if (post.friendId === friendId) values[`settings/requests/${post.id}`] = null
+      }
+      for (const [bookId, ids] of Object.entries(current.nudges)) {
+        if (ids.includes(friendId)) values[`settings/nudges/${bookId}/${friendId}`] = null
+      }
+      for (const [bookId, ids] of Object.entries(current.queues)) {
+        if (ids.includes(friendId)) values[`settings/queues/${bookId}/${friendId}`] = null
       }
       await write(values)
     },
@@ -130,6 +216,8 @@ function createFirebaseRepo(): ShelfRepository {
         [`books/${bookId}`]: null,
         [`reads/${bookId}`]: null,
         [`reading/${bookId}`]: null,
+        [`settings/nudges/${bookId}`]: null,
+        [`settings/queues/${bookId}`]: null,
       }
       for (const review of reviews) {
         if (review.bookId === bookId) values[`reviews/${review.id}`] = null
@@ -140,39 +228,80 @@ function createFirebaseRepo(): ShelfRepository {
       const values: Record<string, unknown> = {
         [`reads/${bookId}/${friendId}`]: read ? true : null,
       }
-      if (clearReading) values[`reading/${bookId}`] = null
+      if (clearReading) {
+        values[`reading/${bookId}`] = null
+        values[`settings/nudges/${bookId}`] = null
+      }
       await write(values)
     },
     async setReading(bookId, friendId) {
-      await write({ [`reading/${bookId}`]: friendId })
+      const values: Record<string, unknown> = { [`reading/${bookId}`]: friendId }
+      values[`settings/nudges/${bookId}`] = null
+      if (friendId) values[`settings/queues/${bookId}/${friendId}`] = null
+      await write(values)
     },
     async addReview(review) {
+      await write({ [`reviews/${review.id}`]: reviewPayload(review) })
+    },
+    async updateReview(reviewId, text, editedAt) {
       await write({
-        [`reviews/${review.id}`]: {
-          bookId: review.bookId,
-          friendId: review.friendId,
-          text: review.text,
-          createdAt: review.createdAt,
-          rating: review.rating,
-        },
+        [`reviews/${reviewId}/text`]: text,
+        [`reviews/${reviewId}/editedAt`]: editedAt,
       })
     },
     async deleteReview(reviewId) {
-      await write({ [`reviews/${reviewId}`]: null })
+      const values: Record<string, unknown> = { [`reviews/${reviewId}`]: null }
+      for (const review of current.reviews) {
+        if (review.parentId === reviewId) values[`reviews/${review.id}`] = null
+      }
+      await write(values)
     },
-    async replaceShelf(data) {
+    async setReviewLike(reviewId, friendId, like) {
+      await write({ [`reviews/${reviewId}/likes/${friendId}`]: like ? true : null })
+    },
+    async setNudge(bookId, friendId, at) {
+      await write({ [`settings/nudges/${bookId}/${friendId}`]: at })
+    },
+    async clearNudges(bookId) {
+      await write({ [`settings/nudges/${bookId}`]: null })
+    },
+    async setQueue(bookId, friendId, at) {
+      await write({ [`settings/queues/${bookId}/${friendId}`]: at })
+    },
+    async saveAdmin(admin) {
+      await write({ 'settings/admin': { salt: admin.salt, hash: admin.hash } })
+    },
+    async addRequest(post) {
+      await write({ [`settings/requests/${post.id}`]: requestPayload(post) })
+    },
+    async deleteRequest(postId) {
+      await write({ [`settings/requests/${postId}`]: null })
+    },
+    async setRequestDone(postId, done) {
+      await write({ [`settings/requests/${postId}/done`]: done })
+    },
+    async addRequestReply(postId, reply) {
       await write({
-        friends: friendsRecord(data.friends),
-        books: booksRecord(data.books),
-        reads: Object.keys(data.reads).length ? data.reads : null,
-        reading: Object.keys(data.reading).length ? data.reading : null,
-        reviews: data.reviews.length ? reviewsRecord(data.reviews) : null,
-        'settings/initialized': true,
-        'settings/passcodeSalt': data.passcodeSalt,
-        'settings/passcodeHash': data.passcodeHash,
+        [`settings/requests/${postId}/replies/${reply.id}`]: { text: reply.text, createdAt: reply.createdAt },
+      })
+    },
+    async clearBooks() {
+      await write({
+        books: null,
+        reads: null,
+        reading: null,
+        reviews: null,
+        'settings/nudges': null,
+        'settings/queues': null,
       })
     },
   }
+}
+
+function withoutId(queue: ShelfData['queues'], bookId: string, friendId: string): ShelfData['queues'] {
+  const next = { ...queue, [bookId]: (queue[bookId] ?? []).filter((id) => id !== friendId) }
+  if (next[bookId].length === 0) delete next[bookId]
+  return next
 }
 
 function createDemoRepo(): ShelfRepository {
@@ -237,8 +366,17 @@ function createDemoRepo(): ShelfRepository {
           return [bookId, next]
         }),
       )
-      const reading = Object.fromEntries(
-        Object.entries(current.reading).filter(([, reader]) => reader !== friendId),
+      const reading = Object.fromEntries(Object.entries(current.reading).filter(([, reader]) => reader !== friendId))
+      const removed = new Set(current.reviews.filter((review) => review.friendId === friendId).map((review) => review.id))
+      const nudges = Object.fromEntries(
+        Object.entries(current.nudges)
+          .map(([bookId, ids]) => [bookId, ids.filter((id) => id !== friendId)] as const)
+          .filter(([, ids]) => ids.length > 0),
+      )
+      const queues = Object.fromEntries(
+        Object.entries(current.queues)
+          .map(([bookId, ids]) => [bookId, ids.filter((id) => id !== friendId)] as const)
+          .filter(([, ids]) => ids.length > 0),
       )
       persist(
         {
@@ -246,7 +384,12 @@ function createDemoRepo(): ShelfRepository {
           friends: current.friends.filter((friend) => friend.id !== friendId),
           reads,
           reading,
-          reviews: current.reviews.filter((review) => review.friendId !== friendId),
+          reviews: current.reviews
+            .filter((review) => review.friendId !== friendId && !(review.parentId && removed.has(review.parentId)))
+            .map((review) => ({ ...review, likes: review.likes.filter((id) => id !== friendId) })),
+          posts: current.posts.filter((post) => post.friendId !== friendId),
+          nudges,
+          queues,
         },
         true,
       )
@@ -262,6 +405,10 @@ function createDemoRepo(): ShelfRepository {
       delete reads[bookId]
       const reading = { ...current.reading }
       delete reading[bookId]
+      const nudges = { ...current.nudges }
+      delete nudges[bookId]
+      const queues = { ...current.queues }
+      delete queues[bookId]
       const dropped = new Set(reviews.filter((review) => review.bookId === bookId).map((review) => review.id))
       persist(
         {
@@ -270,6 +417,8 @@ function createDemoRepo(): ShelfRepository {
           reads,
           reading,
           reviews: current.reviews.filter((review) => review.bookId !== bookId && !dropped.has(review.id)),
+          nudges,
+          queues,
         },
         true,
       )
@@ -282,23 +431,107 @@ function createDemoRepo(): ShelfRepository {
       if (Object.keys(marks).length) reads[bookId] = marks
       else delete reads[bookId]
       const reading = { ...current.reading }
-      if (clearReading) delete reading[bookId]
-      persist({ ...current, reads, reading }, true)
+      const nudges = { ...current.nudges }
+      if (clearReading) {
+        delete reading[bookId]
+        delete nudges[bookId]
+      }
+      persist({ ...current, reads, reading, nudges }, true)
     },
     async setReading(bookId, friendId) {
       const reading = { ...current.reading }
       if (friendId) reading[bookId] = friendId
       else delete reading[bookId]
-      persist({ ...current, reading }, true)
+      const nudges = { ...current.nudges }
+      delete nudges[bookId]
+      const queues = friendId ? withoutId(current.queues, bookId, friendId) : current.queues
+      persist({ ...current, reading, nudges, queues }, true)
     },
     async addReview(review) {
       persist({ ...current, reviews: [review, ...current.reviews.filter((item) => item.id !== review.id)] }, true)
     },
-    async deleteReview(reviewId) {
-      persist({ ...current, reviews: current.reviews.filter((review) => review.id !== reviewId) }, true)
+    async updateReview(reviewId, text, editedAt) {
+      persist(
+        {
+          ...current,
+          reviews: current.reviews.map((review) => (review.id === reviewId ? { ...review, text, editedAt } : review)),
+        },
+        true,
+      )
     },
-    async replaceShelf(data) {
-      persist(data, true)
+    async deleteReview(reviewId) {
+      persist(
+        {
+          ...current,
+          reviews: current.reviews.filter((review) => review.id !== reviewId && review.parentId !== reviewId),
+        },
+        true,
+      )
+    },
+    async setReviewLike(reviewId, friendId, like) {
+      persist(
+        {
+          ...current,
+          reviews: current.reviews.map((review) => {
+            if (review.id !== reviewId) return review
+            const likes = review.likes.filter((id) => id !== friendId)
+            if (like) likes.push(friendId)
+            return { ...review, likes }
+          }),
+        },
+        true,
+      )
+    },
+    async setNudge(bookId, friendId) {
+      const ids = current.nudges[bookId] ?? []
+      if (ids.includes(friendId)) return
+      persist({ ...current, nudges: { ...current.nudges, [bookId]: [...ids, friendId] } }, true)
+    },
+    async clearNudges(bookId) {
+      const nudges = { ...current.nudges }
+      delete nudges[bookId]
+      persist({ ...current, nudges }, true)
+    },
+    async setQueue(bookId, friendId, at) {
+      if (at === null) {
+        persist({ ...current, queues: withoutId(current.queues, bookId, friendId) }, true)
+        return
+      }
+      const ids = current.queues[bookId] ?? []
+      if (ids.includes(friendId)) return
+      persist({ ...current, queues: { ...current.queues, [bookId]: [...ids, friendId] } }, true)
+    },
+    async saveAdmin(admin) {
+      persist({ ...current, admin }, true)
+    },
+    async addRequest(post) {
+      persist({ ...current, posts: [post, ...current.posts.filter((item) => item.id !== post.id)] }, true)
+    },
+    async deleteRequest(postId) {
+      persist({ ...current, posts: current.posts.filter((post) => post.id !== postId) }, true)
+    },
+    async setRequestDone(postId, done) {
+      persist(
+        { ...current, posts: current.posts.map((post) => (post.id === postId ? { ...post, done } : post)) },
+        true,
+      )
+    },
+    async addRequestReply(postId, reply) {
+      persist(
+        {
+          ...current,
+          posts: current.posts.map((post) =>
+            post.id === postId ? { ...post, replies: [...post.replies, reply] } : post,
+          ),
+        },
+        true,
+      )
+    },
+    async clearBooks() {
+      persist(
+        { ...current, books: [], reads: {}, reading: {}, reviews: [], nudges: {}, queues: {} },
+        true,
+      )
     },
   }
 }
@@ -323,10 +556,8 @@ function readDemo(): ShelfData {
 }
 
 export function createRepository(): ShelfRepository {
+  if (import.meta.env.VITE_DEMO === '1') return createDemoRepo()
   if (readFirebaseConfig()) return createFirebaseRepo()
   return createDemoRepo()
 }
 
-export function emptyReplacement(current: ShelfData): ShelfData {
-  return clearedBooks(current)
-}

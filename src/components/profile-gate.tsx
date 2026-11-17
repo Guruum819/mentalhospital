@@ -73,10 +73,13 @@ export function ProfileGate({
       ) : (
         <div className="mt-6">
           <h2 className="text-xl font-bold">{mode === 'edit' ? '프로필 수정' : '프로필 만들기'}</h2>
+          {mode !== 'edit' && shelf.data.friends.some((friend) => friend.approved) ? (
+            <p className="mt-1 text-sm text-muted-foreground">관리자가 승인한 뒤에 서재가 열려용.</p>
+          ) : null}
           <div className="mt-4">
             <ProfileForm
               friend={mode === 'edit' ? me : null}
-              submitLabel={mode === 'edit' ? '저장' : '시작하기'}
+              submitLabel={mode === 'edit' ? '저장' : '신청하기'}
               onCancel={mode === 'edit' ? onCancel : !nobody ? () => onMode('login') : onCancel}
               onComplete={onLogin}
               onDelete={mode === 'edit' && me ? () => onDelete(me) : undefined}

@@ -1,31 +1,31 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { toast } from 'sonner'
+import { forgetAdmin, hashSecret, isAdminSession, randomSalt, rememberAdmin } from './admin-auth.ts'
 import { toKoreanError } from './errors.ts'
+import { readWho } from './identity.ts'
 import {
+  MAX_AUTHOR,
   MAX_BOOKS,
+  MAX_NAME,
+  MAX_TITLE,
+  cleanBirthday,
   cleanCover,
   cleanPhoto,
   cleanReview,
-  snapRating,
   cleanText,
-  cleanBirthday,
   colorTaken,
-  sameIdentity,
   newId,
   nextOrder,
+  sameIdentity,
+  snapRating,
   toggledRead,
   withRead,
   withReading,
-  MAX_AUTHOR,
-  MAX_NAME,
-  MAX_TITLE,
 } from './model.ts'
 import { PALETTE } from './palette.ts'
-import { readWho } from './identity.ts'
-import { clearUnlock, hashPasscode, isUnlocked, randomSalt, rememberUnlock } from './passcode.ts'
-import { createRepository, emptyReplacement, type ShelfRepository } from './repo.ts'
+import { createRepository, type ShelfRepository } from './repo.ts'
 import { starterShelf } from './seed.ts'
-import type { Book, Friend, ShelfData } from './types.ts'
+import type { Book, Friend, Review, ShelfData } from './types.ts'
 
 type BookInput = {
   title: string
@@ -40,20 +40,32 @@ type ShelfApi = {
   error: string | null
   connected: boolean
   mode: ShelfRepository['mode']
-  unlocked: boolean
-  unlock: (passcode: string, remember: boolean) => Promise<boolean>
-  setPasscode: (next: string | null, current: string | null) => Promise<boolean>
+  admin: boolean
   addFriend: (name: string, color: string, photo: string | null, birthday: string) => Promise<string | null>
   updateFriend: (id: string, name: string, color: string, photo: string | null, birthday: string) => Promise<boolean>
   removeFriend: (id: string) => Promise<boolean>
+  approveFriend: (id: string) => Promise<boolean>
   addReview: (bookId: string, friendId: string, text: string, rating: number) => Promise<boolean>
+  updateReview: (reviewId: string, text: string) => Promise<boolean>
   deleteReview: (reviewId: string) => Promise<boolean>
+  toggleLike: (reviewId: string) => Promise<void>
+  addReply: (reviewId: string, text: string) => Promise<boolean>
   addBook: (input: BookInput) => Promise<boolean>
   updateBook: (id: string, input: BookInput) => Promise<boolean>
   removeBook: (id: string) => Promise<boolean>
   toggleRead: (bookId: string, friendId: string) => Promise<void>
   setReading: (bookId: string, friendId: string | null) => Promise<void>
-  restoreStarter: () => Promise<boolean>
+  nudge: (bookId: string) => Promise<void>
+  dismissNudges: (bookId: string) => Promise<void>
+  toggleQueue: (bookId: string) => Promise<void>
+  addRequest: (text: string, anonymous: boolean) => Promise<boolean>
+  deleteRequest: (id: string) => Promise<boolean>
+  setRequestDone: (id: string, done: boolean) => Promise<boolean>
+  replyRequest: (id: string, text: string) => Promise<boolean>
+  setupAdmin: (password: string, again: string) => Promise<boolean>
+  loginAdmin: (password: string) => Promise<boolean>
+  changeAdmin: (current: string, next: string, again: string) => Promise<boolean>
+  logoutAdmin: () => void
   clearShelf: () => Promise<boolean>
 }
 
@@ -62,6 +74,7 @@ const ShelfContext = createContext<ShelfApi | null>(null)
 type Pending = {
   reads: Map<string, boolean>
   reading: Map<string, string | null>
+  likes: Map<string, boolean>
 }
 
 function cellKey(bookId: string, friendId: string) {
@@ -78,19 +91,36 @@ function applyPending(base: ShelfData, pending: Pending): ShelfData {
   for (const [bookId, friendId] of pending.reading) {
     reading = withReading(reading, bookId, friendId)
   }
-  return { ...base, reads, reading }
+  let reviews = base.reviews
+  if (pending.likes.size > 0) {
+    reviews = reviews.map((review) => {
+      let likes = review.likes
+      let changed = false
+      for (const [key, like] of pending.likes) {
+        const slash = key.indexOf('/')
+        if (key.slice(0, slash) !== review.id) continue
+        const friendId = key.slice(slash + 1)
+        const has = likes.includes(friendId)
+        if (like === has) continue
+        likes = like ? [...likes, friendId] : likes.filter((id) => id !== friendId)
+        changed = true
+      }
+      return changed ? { ...review, likes } : review
+    })
+  }
+  return { ...base, reads, reading, reviews }
 }
 
 export function ShelfProvider({ children }: { children: ReactNode }) {
   const [repo] = useState(createRepository)
   const [data, setData] = useState<ShelfData>(starterShelf)
   const dataRef = useRef(data)
-  const pendingRef = useRef<Pending>({ reads: new Map(), reading: new Map() })
+  const pendingRef = useRef<Pending>({ reads: new Map(), reading: new Map(), likes: new Map() })
   const [pendingTick, setPendingTick] = useState(0)
   const [ready, setReady] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [connected, setConnected] = useState(false)
-  const [unlockTick, setUnlockTick] = useState(0)
+  const [adminTick, setAdminTick] = useState(0)
 
   useEffect(() => {
     return repo.subscribe(
@@ -105,6 +135,12 @@ export function ShelfProvider({ children }: { children: ReactNode }) {
           const actual = next.reading[bookId] ?? null
           if (actual === friendId) pendingRef.current.reading.delete(bookId)
         }
+        for (const [key, desired] of pendingRef.current.likes) {
+          const slash = key.indexOf('/')
+          const review = next.reviews.find((item) => item.id === key.slice(0, slash))
+          const actual = Boolean(review?.likes.includes(key.slice(slash + 1)))
+          if (review && actual === desired) pendingRef.current.likes.delete(key)
+        }
         setData(next)
         setConnected(meta.connected)
         setError(null)
@@ -118,10 +154,7 @@ export function ShelfProvider({ children }: { children: ReactNode }) {
     )
   }, [repo])
 
-  const shown = useMemo(
-    () => applyPending(data, pendingRef.current),
-    [data, pendingTick],
-  )
+  const shown = useMemo(() => applyPending(data, pendingRef.current), [data, pendingTick])
 
   function bump() {
     setPendingTick((tick) => tick + 1)
@@ -139,6 +172,7 @@ export function ShelfProvider({ children }: { children: ReactNode }) {
 
   const api = useMemo<ShelfApi>(() => {
     const shownNow = () => applyPending(dataRef.current, pendingRef.current)
+    const isAdmin = () => isAdminSession(dataRef.current.admin?.hash ?? null)
 
     return {
       data: shown,
@@ -146,49 +180,7 @@ export function ShelfProvider({ children }: { children: ReactNode }) {
       error,
       connected,
       mode: repo.mode,
-      unlocked: isUnlocked(shown.passcodeHash),
-      async unlock(passcode, remember) {
-        const { passcodeSalt, passcodeHash } = dataRef.current
-        if (!passcodeHash || !passcodeSalt) return true
-        const hash = await hashPasscode(passcode, passcodeSalt)
-        if (hash !== passcodeHash) return false
-        rememberUnlock(hash, remember)
-        setUnlockTick((tick) => tick + 1)
-        return true
-      },
-      async setPasscode(next, current) {
-        const shelf = dataRef.current
-        if (shelf.passcodeHash) {
-          if (!current || !shelf.passcodeSalt) {
-            toast.error('지금 암호를 입력해 주세용.')
-            return false
-          }
-          const currentHash = await hashPasscode(current, shelf.passcodeSalt)
-          if (currentHash !== shelf.passcodeHash) {
-            toast.error('지금 암호가 안 맞아용.')
-            return false
-          }
-        }
-        if (!next) {
-          const ok = await guard(async () => {
-            await repo.replaceShelf({ ...dataRef.current, passcodeSalt: null, passcodeHash: null })
-          })
-          if (ok) {
-            clearUnlock()
-            setUnlockTick((tick) => tick + 1)
-          }
-          return ok
-        }
-        const salt = randomSalt()
-        const hash = await hashPasscode(next, salt)
-        rememberUnlock(hash, true)
-        const ok = await guard(async () => {
-          await repo.replaceShelf({ ...dataRef.current, passcodeSalt: salt, passcodeHash: hash })
-        })
-        setUnlockTick((tick) => tick + 1)
-        if (ok) toast.success('암호를 저장했어용.')
-        return ok
-      },
+      admin: isAdmin(),
       async addFriend(name, color, photo, birthday) {
         const clean = cleanText(name, MAX_NAME)
         const born = cleanBirthday(birthday)
@@ -225,8 +217,10 @@ export function ShelfProvider({ children }: { children: ReactNode }) {
           order: nextOrder(shelf.friends),
           photo: storedPhoto,
           birthday: born,
+          approved: !shelf.friends.some((item) => item.approved),
         }
         const ok = await guard(() => repo.saveFriend(friend))
+        if (ok) toast.success(friend.approved ? '프로필을 만들었어용.' : '가입 신청을 보냈어용.')
         return ok ? friend.id : null
       },
       async updateFriend(id, name, color, photo, birthday) {
@@ -261,6 +255,17 @@ export function ShelfProvider({ children }: { children: ReactNode }) {
       removeFriend(id) {
         return guard(() => repo.deleteFriend(id))
       },
+      async approveFriend(id) {
+        if (!isAdmin()) {
+          toast.error('관리자만 승인할 수 있어용.')
+          return false
+        }
+        const friend = shownNow().friends.find((item) => item.id === id)
+        if (!friend) return false
+        const ok = await guard(() => repo.saveFriend({ ...friend, approved: true }))
+        if (ok) toast.success('가입을 승인했어용.')
+        return ok
+      },
       async addReview(bookId, friendId, text, rating) {
         const clean = cleanReview(text)
         const stars = snapRating(rating)
@@ -276,19 +281,83 @@ export function ShelfProvider({ children }: { children: ReactNode }) {
         if (!shelf.books.some((book) => book.id === bookId) || !shelf.friends.some((friend) => friend.id === friendId)) {
           return false
         }
-        return guard(() =>
-          repo.addReview({
-            id: newId('review'),
-            bookId,
-            friendId,
-            text: clean,
-            createdAt: Date.now(),
-            rating: stars,
-          }),
-        )
+        const review: Review = {
+          id: newId('review'),
+          bookId,
+          friendId,
+          text: clean,
+          createdAt: Date.now(),
+          rating: stars,
+          parentId: null,
+          editedAt: null,
+          likes: [],
+        }
+        return guard(() => repo.addReview(review))
+      },
+      async updateReview(reviewId, text) {
+        const clean = cleanReview(text)
+        if (!clean) {
+          toast.error('한 줄 평을 입력해 주세용.')
+          return false
+        }
+        const review = shownNow().reviews.find((item) => item.id === reviewId)
+        if (!review || review.friendId !== readWho()) {
+          toast.error('내가 쓴 글만 고칠 수 있어용.')
+          return false
+        }
+        const ok = await guard(() => repo.updateReview(reviewId, clean, Date.now()))
+        if (ok) toast.success('수정했어용.')
+        return ok
       },
       deleteReview(reviewId) {
+        const review = shownNow().reviews.find((item) => item.id === reviewId)
+        if (!review || review.friendId !== readWho()) {
+          toast.error('내가 쓴 글만 지울 수 있어용.')
+          return Promise.resolve(false)
+        }
         return guard(() => repo.deleteReview(reviewId))
+      },
+      async toggleLike(reviewId) {
+        const me = readWho()
+        const review = shownNow().reviews.find((item) => item.id === reviewId)
+        if (!me || !review) return
+        const like = !review.likes.includes(me)
+        const key = cellKey(reviewId, me)
+        pendingRef.current.likes.set(key, like)
+        bump()
+        try {
+          await repo.setReviewLike(reviewId, me, like)
+          if (pendingRef.current.likes.get(key) === like) pendingRef.current.likes.delete(key)
+          bump()
+        } catch (caught) {
+          pendingRef.current.likes.delete(key)
+          bump()
+          toast.error(toKoreanError(caught))
+        }
+      },
+      async addReply(reviewId, text) {
+        const clean = cleanReview(text)
+        if (!clean) {
+          toast.error('답글을 입력해 주세용.')
+          return false
+        }
+        const me = readWho()
+        const parent = shownNow().reviews.find((item) => item.id === reviewId)
+        if (!me || !parent || parent.parentId) return false
+        const reply: Review = {
+          id: newId('review'),
+          bookId: parent.bookId,
+          friendId: me,
+          text: clean,
+          createdAt: Date.now(),
+          rating: null,
+          parentId: parent.id,
+          editedAt: null,
+          likes: [],
+        }
+        const ok = await guard(() => repo.addReview(reply))
+        if (ok) toast.success('답글을 올렸어용.')
+        return ok
       },
       async addBook(input) {
         const title = cleanText(input.title, MAX_TITLE)
@@ -301,7 +370,7 @@ export function ShelfProvider({ children }: { children: ReactNode }) {
           toast.error(`책은 ${MAX_BOOKS}권까지 올릴 수 있어용.`)
           return false
         }
-        if (!shelf.friends.some((friend) => friend.id === input.buyerId)) {
+        if (!shelf.friends.some((friend) => friend.id === input.buyerId && friend.approved)) {
           toast.error('프로필로 들어간 뒤에 책을 올릴 수 있어용.')
           return false
         }
@@ -329,15 +398,22 @@ export function ShelfProvider({ children }: { children: ReactNode }) {
           toast.error('이 책을 올린 사람만 수정할 수 있어용.')
           return false
         }
-        return guard(() =>
+        const coverUrl = cleanCover(input.coverUrl)
+        if (input.coverUrl && !coverUrl) {
+          toast.error('표지를 저장하지 못했어용. 다른 사진을 골라 주세용.')
+          return false
+        }
+        const ok = await guard(() =>
           repo.saveBook({
             ...current,
             title,
             author: cleanText(input.author, MAX_AUTHOR) ?? '',
-            coverUrl: cleanCover(input.coverUrl),
+            coverUrl,
             buyerId: current.buyerId,
           }),
         )
+        if (ok) toast.success('저장했어용.')
+        return ok
       },
       removeBook(id) {
         const shelf = shownNow()
@@ -400,15 +476,168 @@ export function ShelfProvider({ children }: { children: ReactNode }) {
           toast.error(toKoreanError(caught))
         }
       },
-      restoreStarter() {
-        return guard(() => repo.replaceShelf(starterShelf(dataRef.current)))
+      async nudge(bookId) {
+        const me = readWho()
+        const shelf = shownNow()
+        const reader = shelf.reading[bookId]
+        if (!me || !reader || reader === me) {
+          toast('지금 읽는 친구에게만 독촉할 수 있어용')
+          return
+        }
+        if ((shelf.nudges[bookId] ?? []).includes(me)) {
+          toast('이미 독촉했어용')
+          return
+        }
+        const ok = await guard(() => repo.setNudge(bookId, me, Date.now()))
+        if (ok) toast.success('독촉했어용')
+      },
+      async dismissNudges(bookId) {
+        const me = readWho()
+        if (!me || shownNow().reading[bookId] !== me) return
+        await guard(() => repo.clearNudges(bookId))
+      },
+      async toggleQueue(bookId) {
+        const me = readWho()
+        const shelf = shownNow()
+        if (!me || !shelf.reading[bookId]) return
+        if (shelf.reading[bookId] === me) {
+          toast('지금 읽고 있어서 대기할 필요가 없어용')
+          return
+        }
+        const joined = (shelf.queues[bookId] ?? []).includes(me)
+        const ok = await guard(() => repo.setQueue(bookId, me, joined ? null : Date.now()))
+        if (ok) toast.success(joined ? '대기에서 빠졌어용.' : '다음에 읽을 순서에 넣었어용.')
+      },
+      async addRequest(text, anonymous) {
+        const me = readWho()
+        const clean = cleanReview(text)
+        if (!me || !clean) {
+          toast.error('내용을 입력해 주세용.')
+          return false
+        }
+        const ok = await guard(() =>
+          repo.addRequest({
+            id: newId('request'),
+            friendId: me,
+            anonymous,
+            text: clean,
+            createdAt: Date.now(),
+            done: false,
+            replies: [],
+          }),
+        )
+        if (ok) toast.success('요청을 올렸어용.')
+        return ok
+      },
+      deleteRequest(id) {
+        const post = shownNow().posts.find((item) => item.id === id)
+        if (!post || (post.friendId !== readWho() && !isAdmin())) {
+          toast.error('이 글은 지울 수 없어용.')
+          return Promise.resolve(false)
+        }
+        return guard(() => repo.deleteRequest(id))
+      },
+      setRequestDone(id, done) {
+        if (!isAdmin()) {
+          toast.error('관리자만 완료로 표시할 수 있어용.')
+          return Promise.resolve(false)
+        }
+        return guard(() => repo.setRequestDone(id, done))
+      },
+      async replyRequest(id, text) {
+        if (!isAdmin()) {
+          toast.error('답글은 관리자만 달 수 있어용.')
+          return false
+        }
+        const clean = cleanReview(text)
+        if (!clean) {
+          toast.error('답글을 입력해 주세용.')
+          return false
+        }
+        if (!shownNow().posts.some((post) => post.id === id)) return false
+        const ok = await guard(() => repo.addRequestReply(id, { id: newId('reply'), text: clean, createdAt: Date.now() }))
+        if (ok) toast.success('답글을 올렸어용.')
+        return ok
+      },
+      async setupAdmin(password, again) {
+        if (dataRef.current.admin) {
+          toast.error('이미 관리자 암호가 있어용.')
+          return false
+        }
+        if (password.length < 4) {
+          toast.error('암호는 네 글자 이상으로 해 주세용.')
+          return false
+        }
+        if (password !== again) {
+          toast.error('암호 확인이 달라용.')
+          return false
+        }
+        const salt = randomSalt()
+        const hash = await hashSecret(password, salt)
+        const ok = await guard(() => repo.saveAdmin({ salt, hash }))
+        if (ok) {
+          rememberAdmin(hash)
+          setAdminTick((tick) => tick + 1)
+          toast.success('관리자 암호를 만들었어용.')
+        }
+        return ok
+      },
+      async loginAdmin(password) {
+        const admin = dataRef.current.admin
+        if (!admin) return false
+        const hash = await hashSecret(password, admin.salt)
+        if (hash !== admin.hash) {
+          toast.error('암호가 안 맞아용.')
+          return false
+        }
+        rememberAdmin(hash)
+        setAdminTick((tick) => tick + 1)
+        toast.success('관리자로 들어왔어용.')
+        return true
+      },
+      async changeAdmin(current, next, again) {
+        const admin = dataRef.current.admin
+        if (!admin || !isAdmin()) {
+          toast.error('관리자로 들어간 뒤에 바꿀 수 있어용.')
+          return false
+        }
+        const currentHash = await hashSecret(current, admin.salt)
+        if (currentHash !== admin.hash) {
+          toast.error('지금 암호가 안 맞아용.')
+          return false
+        }
+        if (next.length < 4) {
+          toast.error('암호는 네 글자 이상으로 해 주세용.')
+          return false
+        }
+        if (next !== again) {
+          toast.error('암호 확인이 달라용.')
+          return false
+        }
+        const salt = randomSalt()
+        const hash = await hashSecret(next, salt)
+        const ok = await guard(() => repo.saveAdmin({ salt, hash }))
+        if (ok) {
+          rememberAdmin(hash)
+          setAdminTick((tick) => tick + 1)
+          toast.success('관리자 암호를 바꿨어용.')
+        }
+        return ok
+      },
+      logoutAdmin() {
+        forgetAdmin()
+        setAdminTick((tick) => tick + 1)
+        toast.success('관리자에서 나왔어용.')
       },
       clearShelf() {
-        return guard(() => repo.replaceShelf(emptyReplacement(dataRef.current)))
+        if (!isAdmin()) {
+          toast.error('책 비우기는 관리자만 할 수 있어용.')
+          return Promise.resolve(false)
+        }
+        return guard(() => repo.clearBooks())
       },
     }
-    // shown is the render snapshot; mutations read the refs.
-  }, [shown, ready, error, connected, repo, unlockTick])
+  }, [shown, ready, error, connected, repo, adminTick])
 
   return <ShelfContext.Provider value={api}>{children}</ShelfContext.Provider>
 }

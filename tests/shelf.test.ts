@@ -12,7 +12,8 @@ import {
   titleForHangulQuery,
   type BookHit,
 } from '../src/lib/book-search.ts'
-import { cleanBirthday, cleanReview, findProfile, sameIdentity, toggledRead } from '../src/lib/model.ts'
+import { cleanBirthday, cleanCover, cleanReview, findProfile, fromFirebase, nudgeLine, sameIdentity, sortedBooks, sortedComments, toggledRead } from '../src/lib/model.ts'
+import { formatPatchDate } from '../src/lib/patch-notes.ts'
 import { PALETTE } from '../src/lib/palette.ts'
 import { starterShelf } from '../src/lib/seed.ts'
 import type { Friend, ShelfData } from '../src/lib/types.ts'
@@ -26,8 +27,8 @@ test('starter shelf has no seeded friends or books', () => {
 
 test('name plus birthday is the unique login key', () => {
   const friends: Friend[] = [
-    { id: 'a', name: '지원', order: 1, color: 'clay', photo: null, birthday: '1998-03-02' },
-    { id: 'b', name: '지원', order: 2, color: 'rose', photo: null, birthday: '2001-11-09' },
+    { id: 'a', name: '지원', order: 1, color: 'clay', photo: null, birthday: '1998-03-02', approved: true },
+    { id: 'b', name: '지원', order: 2, color: 'rose', photo: null, birthday: '2001-11-09', approved: true },
   ]
   assert.equal(sameIdentity(friends, '지원', '1998-03-02'), true)
   assert.equal(sameIdentity(friends, '지원', '1990-01-01'), false)
@@ -39,7 +40,7 @@ test('name plus birthday is the unique login key', () => {
 test('checking the current reader clears 읽는 중 and unchecking brings it back only when toggled off', () => {
   const shelf: ShelfData = {
     ...starterShelf(),
-    friends: [{ id: 'friend-chaeryeong', name: '채령', order: 1, color: 'indigo', photo: null, birthday: '1999-01-01' }],
+    friends: [{ id: 'friend-chaeryeong', name: '채령', order: 1, color: 'indigo', photo: null, birthday: '1999-01-01', approved: true }],
     books: [{ id: 'book-1', title: '책', author: '', coverUrl: null, buyerId: 'friend-chaeryeong', order: 1 }],
     reading: { 'book-1': 'friend-chaeryeong' },
   }
@@ -103,4 +104,56 @@ test('Hangul search prefers the Korean title and keeps a cover', () => {
   const onlyRomanized = combineBookHits({ openlibrary: [romanized] }, '작별하지 않는다')
   assert.equal(onlyRomanized[0]?.title, '작별하지 않는다')
   assert.equal(onlyRomanized[0]?.coverUrl, romanized.coverUrl)
+})
+
+test('existing members without an approval flag stay approved and keep their reviews', () => {
+  const shelf = fromFirebase({
+    settings: { initialized: true },
+    friends: {
+      'friend-1': { name: '채령', order: 1, color: 'indigo', birthday: '1999-01-01', photo: '' },
+    },
+    books: {
+      'book-1': { title: '작별하지 않는다', author: '한강', coverUrl: 'https://example.com/a.jpg', buyerId: 'friend-1', order: 2 },
+    },
+    reviews: {
+      'review-1': { bookId: 'book-1', friendId: 'friend-1', text: '좋았어용', createdAt: 10, rating: 4.5 },
+    },
+    reads: { 'book-1': { 'friend-1': true } },
+  })
+  assert.equal(shelf.friends[0]?.approved, true)
+  assert.equal(shelf.reviews[0]?.text, '좋았어용')
+  assert.equal(shelf.reviews[0]?.parentId, null)
+  assert.equal(shelf.books[0]?.title, '작별하지 않는다')
+  assert.equal(shelf.reads['book-1']?.['friend-1'], true)
+  const pending = fromFirebase({
+    friends: { 'friend-2': { name: '새', order: 2, color: 'rose', birthday: '2000-01-01', approved: false } },
+  })
+  assert.equal(pending.friends[0]?.approved, false)
+})
+
+test('book sort puts unrated last and comment sort follows likes', () => {
+  const books = [
+    { id: 'old', title: '오래된 책', author: '', coverUrl: null, buyerId: 'a', order: 1 },
+    { id: 'new', title: '새 책', author: '', coverUrl: null, buyerId: 'a', order: 3 },
+    { id: 'mid', title: '중간 책', author: '', coverUrl: null, buyerId: 'a', order: 2 },
+  ]
+  const reviews = [
+    { id: 'r1', bookId: 'old', friendId: 'a', text: '좋음', createdAt: 1, rating: 5, parentId: null, editedAt: null, likes: ['a'] },
+    { id: 'r2', bookId: 'mid', friendId: 'a', text: '보통', createdAt: 2, rating: 3, parentId: null, editedAt: null, likes: [] },
+    { id: 'reply', bookId: 'old', friendId: 'a', text: '답', createdAt: 3, rating: null, parentId: 'r1', editedAt: 4, likes: ['a', 'b'] },
+  ]
+  const newest = sortedBooks(books, 'new', reviews, {}, ['a'])
+  assert.deepEqual(newest.map((book) => book.id), ['new', 'mid', 'old'])
+  const popular = sortedBooks(books, 'popular', reviews, {}, ['a'])
+  assert.deepEqual(popular.map((book) => book.id), ['old', 'mid', 'new'])
+  const read = sortedBooks(books, 'read', reviews, { mid: { a: true }, old: { a: true } }, ['a'])
+  assert.equal(read[0]?.id === 'mid' || read[0]?.id === 'old', true)
+  assert.equal(read[2]?.id, 'new')
+  const liked = sortedComments(reviews.filter((review) => !review.parentId), 'likes')
+  assert.equal(liked[0]?.id, 'r1')
+  assert.equal(nudgeLine(['민수']), '민수님이 빨리 읽으래용!')
+  assert.equal(nudgeLine(['민수', '채령']), '채령님 외 1명이 빨리 읽으래용!')
+  assert.equal(formatPatchDate('2026-11-17'), '2026년 11월 17일')
+  assert.equal(cleanCover('data:image/jpeg;base64,aaaa'), 'data:image/jpeg;base64,aaaa')
+  assert.equal(cleanCover('data:image/png;base64,aaaa'), null)
 })

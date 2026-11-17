@@ -1,0 +1,28 @@
+export type PatchNote = {
+  /** YYYY-MM-DD. Newest entries belong at the top. */
+  date: string
+  lines: string[]
+}
+
+export const PATCH_NOTES: PatchNote[] = [
+  {
+    date: '2026-11-17',
+    lines: [
+      '보안을 강화했어용!',
+      '새로 가입하면 관리자 승인을 기다려용.',
+      '그룹 암호는 없앴고, 책 비우기는 관리자만 할 수 있어용.',
+      '표지를 검색하거나 사진으로 바꿀 수 있어용.',
+      '한 줄 평에 답글, 좋아요, 수정이 생겼어용.',
+      '읽는 친구를 독촉하고, 다음에 읽을 순서를 정할 수 있어용.',
+      '설정에 수정 요청 게시판이랑 패치노트를 넣었어용.',
+      '책 목록이랑 코멘트를 정렬하고, 프로필에 탭을 넣었어용.',
+      '화면 색을 차분한 회색으로 바꿨어용.',
+    ],
+  },
+]
+
+export function formatPatchDate(iso: string): string {
+  const [year, month, day] = iso.split('-')
+  if (!year || !month || !day) return iso
+  return `${year}년 ${Number(month)}월 ${Number(day)}일`
+}

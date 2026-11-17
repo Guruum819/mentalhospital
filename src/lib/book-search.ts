@@ -339,6 +339,21 @@ async function searchGoogle(query: string, signal: AbortSignal): Promise<{ hits:
   return { hits: [], quota: false }
 }
 
+export async function searchCovers(query: string, signal: AbortSignal): Promise<BookHit[]> {
+  const q = query.trim()
+  const key = readKakaoKey()
+  if (q.length < 2 || !key) return []
+  const hits = await searchKakao(q, signal, key)
+  const seen = new Set<string>()
+  const unique: BookHit[] = []
+  for (const hit of hits) {
+    if (!hit.coverUrl || seen.has(hit.coverUrl)) continue
+    seen.add(hit.coverUrl)
+    unique.push(hit)
+  }
+  return unique
+}
+
 async function searchKakao(query: string, signal: AbortSignal, key: string): Promise<BookHit[]> {
   const payload = await fetchJson(
     `https://dapi.kakao.com/v3/search/book?size=8&query=${encodeURIComponent(query)}`,

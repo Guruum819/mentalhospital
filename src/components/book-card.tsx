@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Check, ImageOff, MoreHorizontal } from 'lucide-react'
-import { averageRating, countReads } from '@/lib/model'
+import { averageRating, countReads, visibleFriends } from '@/lib/model'
 import { inkFor, paletteColor } from '@/lib/palette'
 import { useShelf } from '@/lib/store'
 import { toast } from 'sonner'
@@ -59,22 +59,24 @@ export function BookCard({
   onEdit,
   onDelete,
   onOpen,
+  onOpenFriend,
 }: {
   book: Book
   meId: string
   onEdit: (book: Book) => void
   onDelete: (book: Book) => void
   onOpen?: (bookId: string) => void
+  onOpenFriend?: (friendId: string) => void
 }) {
   const shelf = useShelf()
   const [brokenCover, setBrokenCover] = useState(false)
-  const friends = shelf.data.friends
+  const friends = visibleFriends(shelf.data.friends)
   const readCount = countReads(
     shelf.data.reads,
     book.id,
     friends.map((friend) => friend.id),
   )
-  const buyer = friends.find((friend) => friend.id === book.buyerId)
+  const buyer = shelf.data.friends.find((friend) => friend.id === book.buyerId)
   const readerId = shelf.data.reading[book.id]
   const reader = friends.find((friend) => friend.id === readerId)
   const readerSwatch = reader ? paletteColor(reader.color) : null
@@ -127,17 +129,21 @@ export function BookCard({
               <StarRating value={average} readOnly size="sm" />
             </div>
           ) : null}
-          <p className="mt-2 flex min-h-11 items-center gap-2 text-[15px]">
+          <div className="mt-2 flex min-h-11 items-center gap-2 text-[15px]">
             {buyer ? (
-              <>
+              <button
+                type="button"
+                className="flex min-w-0 items-center gap-2"
+                onClick={() => onOpenFriend?.(buyer.id)}
+              >
                 <Avatar name={buyer.name} photo={buyer.photo} size={24} />
                 <span className="truncate font-semibold">{buyer.name}</span>
                 <span className="text-muted-foreground">구매</span>
-              </>
+              </button>
             ) : (
               <span className="text-muted-foreground">구매자가 없어용</span>
             )}
-          </p>
+          </div>
           <p className="text-[13px] text-muted-foreground">
             읽음 {readCount}/{friends.length}
           </p>
@@ -219,6 +225,79 @@ export function BookCard({
           </button>
         )}
       </div>
+      {reader ? (
+        <ReadingExtras bookId={book.id} meId={meId} readerId={reader.id} onOpenFriend={onOpenFriend} />
+      ) : null}
     </article>
+  )
+}
+
+function ReadingExtras({
+  bookId,
+  meId,
+  readerId,
+  onOpenFriend,
+}: {
+  bookId: string
+  meId: string
+  readerId: string
+  onOpenFriend?: (friendId: string) => void
+}) {
+  const shelf = useShelf()
+  const nudges = shelf.data.nudges[bookId] ?? []
+  const queue = (shelf.data.queues[bookId] ?? [])
+    .map((id) => shelf.data.friends.find((friend) => friend.id === id))
+    .filter((friend): friend is NonNullable<typeof friend> => Boolean(friend))
+  const nudged = nudges.includes(meId)
+  const queued = queue.some((friend) => friend.id === meId)
+  const mine = readerId === meId
+
+  return (
+    <div className="mt-2 space-y-2">
+      <div className="flex flex-wrap gap-2">
+        {mine ? (
+          nudges.length > 0 ? (
+            <span className="inline-flex h-11 items-center rounded-full bg-foreground px-3 text-[15px] font-bold text-background">
+              독촉 {nudges.length}
+            </span>
+          ) : null
+        ) : (
+          <button
+            type="button"
+            className="h-11 rounded-full bg-foreground px-3 text-[15px] font-bold text-background disabled:opacity-50"
+            disabled={nudged}
+            onClick={() => void shelf.nudge(bookId)}
+          >
+            {nudged ? '독촉했어용' : '독촉하기'}
+          </button>
+        )}
+        {mine ? null : (
+          <button
+            type="button"
+            className="h-11 rounded-full px-3 text-[15px] font-bold ring-1 ring-inset ring-foreground/30"
+            onClick={() => void shelf.toggleQueue(bookId)}
+          >
+            {queued ? '대기 취소' : '다음에 읽을래요'}
+          </button>
+        )}
+      </div>
+      {queue.length > 0 ? (
+        <ol className="flex gap-3 overflow-x-auto" aria-label="다음에 읽을 순서">
+          {queue.map((friend, index) => (
+            <li key={friend.id}>
+              <button
+                type="button"
+                className="flex h-11 items-center gap-1.5"
+                onClick={() => onOpenFriend?.(friend.id)}
+              >
+                <span className="text-[13px] font-bold text-muted-foreground tabular-nums">{index + 1}</span>
+                <Avatar name={friend.name} photo={friend.photo} size={28} />
+                <span className="max-w-24 truncate text-[15px] font-semibold">{friend.name}</span>
+              </button>
+            </li>
+          ))}
+        </ol>
+      ) : null}
+    </div>
   )
 }

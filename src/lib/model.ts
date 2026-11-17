@@ -1,5 +1,5 @@
 import { PALETTE } from './palette.ts'
-import type { Book, Friend, ReadMap, Review, ShelfData } from './types.ts'
+import type { Book, BookSort, CommentSort, Friend, IdQueue, ReadMap, Review, ShelfData } from './types.ts'
 
 export const MAX_NAME = 20
 export const MAX_TITLE = 80
@@ -15,8 +15,10 @@ export function emptyShelf(): ShelfData {
     reads: {},
     reading: {},
     reviews: [],
-    passcodeSalt: null,
-    passcodeHash: null,
+    admin: null,
+    posts: [],
+    nudges: {},
+    queues: {},
     initialized: false,
   }
 }
@@ -58,8 +60,12 @@ export function countFriendReads(
   return bookIds.reduce((total, id) => total + (reads[id]?.[friendId] ? 1 : 0), 0)
 }
 
+export function visibleFriends(friends: readonly Friend[]): Friend[] {
+  return friends.filter((friend) => friend.approved)
+}
+
 export function shelfStats(data: ShelfData) {
-  const friendIds = data.friends.map((friend) => friend.id)
+  const friendIds = visibleFriends(data.friends).map((friend) => friend.id)
   const readCells = data.books.reduce(
     (total, book) => total + countReads(data.reads, book.id, friendIds),
     0,
@@ -163,7 +169,15 @@ function friendFrom(id: string, raw: unknown): Friend | null {
   const order = typeof raw.order === 'number' && Number.isFinite(raw.order) ? raw.order : 0
   const birthday = cleanBirthday(raw.birthday)
   if (!birthday) return null
-  return { id, name, color, order, photo: cleanPhoto(raw.photo), birthday }
+  return {
+    id,
+    name,
+    color,
+    order,
+    photo: cleanPhoto(raw.photo),
+    birthday,
+    approved: raw.approved !== false,
+  }
 }
 
 export const MAX_REVIEW = 200
@@ -198,10 +212,17 @@ export function cleanReview(value: unknown): string | null {
   return chars.length > MAX_REVIEW ? chars.slice(0, MAX_REVIEW).join('') : text
 }
 
+const MAX_COVER_URL = 800
+const MAX_COVER_DATA = 180_000
+
 export function cleanCover(value: unknown): string | null {
   if (typeof value !== 'string') return null
+  if (value.startsWith('data:image/jpeg;base64,')) {
+    if (value.length > MAX_COVER_DATA) return null
+    return value
+  }
   const url = value.trim().replace(/^http:\/\//i, 'https://')
-  if (!/^https:\/\/\S+$/i.test(url) || url.length > 500) return null
+  if (!/^https:\/\/\S+$/i.test(url) || url.length > MAX_COVER_URL) return null
   return url
 }
 
@@ -231,9 +252,106 @@ function parseReviews(raw: unknown): Review[] {
     const text = cleanReview(item.text)
     const createdAt = typeof item.createdAt === 'number' && Number.isFinite(item.createdAt) ? item.createdAt : 0
     if (!isSafeId(bookId) || !isSafeId(friendId) || !text) continue
-    reviews.push({ id: item.id, bookId, friendId, text, createdAt, rating: snapRating(item.rating) })
+    const parentId = typeof item.parentId === 'string' && isSafeId(item.parentId) ? item.parentId : null
+    const editedAt = typeof item.editedAt === 'number' && Number.isFinite(item.editedAt) ? item.editedAt : null
+    reviews.push({
+      id: item.id,
+      bookId,
+      friendId,
+      text,
+      createdAt,
+      rating: snapRating(item.rating),
+      parentId,
+      editedAt,
+      likes: parseLikeIds(item.likes),
+    })
   }
   return reviews.sort((a, b) => b.createdAt - a.createdAt)
+}
+
+function parseLikeIds(raw: unknown): string[] {
+  if (Array.isArray(raw)) {
+    return raw.filter((id): id is string => typeof id === 'string' && isSafeId(id))
+  }
+  if (!isRecord(raw)) return []
+  return Object.entries(raw)
+    .filter((entry): entry is [string, true] => entry[1] === true && isSafeId(entry[0]))
+    .map(([id]) => id)
+}
+
+function parseIdQueue(raw: unknown): IdQueue {
+  if (!isRecord(raw)) return {}
+  const queue: IdQueue = {}
+  for (const [bookId, marks] of Object.entries(raw)) {
+    if (!isSafeId(bookId)) continue
+    if (Array.isArray(marks)) {
+      const ids = marks.filter((id): id is string => typeof id === 'string' && isSafeId(id))
+      if (ids.length > 0) queue[bookId] = ids
+      continue
+    }
+    if (!isRecord(marks)) continue
+    const rows = Object.entries(marks)
+      .filter((entry): entry is [string, number] => isSafeId(entry[0]) && typeof entry[1] === 'number' && Number.isFinite(entry[1]))
+      .sort((a, b) => a[1] - b[1] || a[0].localeCompare(b[0]))
+    if (rows.length > 0) queue[bookId] = rows.map(([id]) => id)
+  }
+  return queue
+}
+
+function parseAdmin(raw: unknown): ShelfData['admin'] {
+  if (!isRecord(raw)) return null
+  const salt = typeof raw.salt === 'string' ? raw.salt : ''
+  const hash = typeof raw.hash === 'string' ? raw.hash : ''
+  if (!/^[0-9a-f]{32}$/.test(salt) || !/^[0-9a-f]{64}$/.test(hash)) return null
+  return { salt, hash }
+}
+
+function parseReplyList(raw: unknown): ShelfData['posts'][number]['replies'] {
+  const entries: [string, unknown][] = Array.isArray(raw)
+    ? raw.map((item, index) => [isRecord(item) && typeof item.id === 'string' ? item.id : `reply-${index}`, item])
+    : isRecord(raw)
+      ? Object.entries(raw)
+      : []
+  return entries
+    .map(([replyId, reply]) => {
+      if (!isSafeId(replyId) || !isRecord(reply)) return null
+      const replyText = cleanReview(reply.text)
+      const at = typeof reply.createdAt === 'number' && Number.isFinite(reply.createdAt) ? reply.createdAt : 0
+      if (!replyText) return null
+      return { id: replyId, text: replyText, createdAt: at }
+    })
+    .filter((reply): reply is ShelfData['posts'][number]['replies'][number] => reply !== null)
+    .sort((a, b) => a.createdAt - b.createdAt)
+}
+
+function parsePosts(raw: unknown): ShelfData['posts'] {
+  if (Array.isArray(raw)) {
+    const record: Record<string, unknown> = {}
+    for (const item of raw) {
+      if (isRecord(item) && typeof item.id === 'string' && isSafeId(item.id)) record[item.id] = item
+    }
+    return parsePosts(record)
+  }
+  if (!isRecord(raw)) return []
+  const posts: ShelfData['posts'] = []
+  for (const [id, value] of Object.entries(raw)) {
+    if (!isSafeId(id) || !isRecord(value)) continue
+    const friendId = typeof value.friendId === 'string' ? value.friendId : ''
+    const text = cleanReview(value.text)
+    const createdAt = typeof value.createdAt === 'number' && Number.isFinite(value.createdAt) ? value.createdAt : 0
+    if (!isSafeId(friendId) || !text) continue
+    const replies = parseReplyList(value.replies)
+    posts.push({
+      id,
+      friendId,
+      anonymous: value.anonymous === true,
+      text,
+      createdAt,
+      done: value.done === true,
+      replies,
+    })
+  }
+  return posts.sort((a, b) => b.createdAt - a.createdAt)
 }
 
 function parseReading(raw: unknown): Record<string, string> {
@@ -266,8 +384,10 @@ export function fromFirebase(raw: unknown): ShelfData {
     reads: parseReads(raw.reads),
     reading: parseReading(raw.reading),
     reviews: parseReviews(raw.reviews),
-    passcodeSalt: typeof settings.passcodeSalt === 'string' ? settings.passcodeSalt : null,
-    passcodeHash: typeof settings.passcodeHash === 'string' ? settings.passcodeHash : null,
+    admin: parseAdmin(settings.admin),
+    posts: parsePosts(settings.requests),
+    nudges: parseIdQueue(settings.nudges),
+    queues: parseIdQueue(settings.queues),
     initialized: settings.initialized === true,
   }
 }
@@ -301,8 +421,10 @@ export function fromPersisted(raw: unknown): ShelfData | null {
     reads: parseReads(raw.reads),
     reading: parseReading(raw.reading),
     reviews: parseReviews(raw.reviews),
-    passcodeSalt: typeof raw.passcodeSalt === 'string' ? raw.passcodeSalt : null,
-    passcodeHash: typeof raw.passcodeHash === 'string' ? raw.passcodeHash : null,
+    admin: parseAdmin(raw.admin),
+    posts: parsePosts(raw.posts),
+    nudges: parseIdQueue(raw.nudges),
+    queues: parseIdQueue(raw.queues),
     initialized: raw.initialized === true,
   }
 }
@@ -317,6 +439,9 @@ export function reviewsRecord(reviews: readonly Review[]) {
         text: review.text,
         createdAt: review.createdAt,
         rating: review.rating,
+        parentId: review.parentId,
+        editedAt: review.editedAt,
+        likes: Object.fromEntries(review.likes.map((id) => [id, true])),
       },
     ]),
   )
@@ -332,6 +457,7 @@ export function friendsRecord(friends: readonly Friend[]) {
         color: friend.color,
         photo: friend.photo ?? '',
         birthday: friend.birthday,
+        approved: friend.approved,
       },
     ]),
   )
@@ -389,4 +515,54 @@ export function toggledRead(
     reading: clearedReading ? withReading(data.reading, bookId, null) : data.reading,
     clearedReading,
   }
+}
+
+export function topLevelReviews(reviews: readonly Review[], bookId?: string): Review[] {
+  return reviews.filter((review) => !review.parentId && (bookId === undefined || review.bookId === bookId))
+}
+
+export function sortedBooks(
+  books: readonly Book[],
+  mode: BookSort,
+  reviews: readonly Review[],
+  reads: ReadMap,
+  friendIds: readonly string[],
+): Book[] {
+  const copy = books.slice()
+  const byOrder = (a: Book, b: Book) => b.order - a.order || a.title.localeCompare(b.title, 'ko')
+  if (mode === 'popular') {
+    copy.sort((a, b) => {
+      const left = averageRating(topLevelReviews(reviews, a.id))
+      const right = averageRating(topLevelReviews(reviews, b.id))
+      if (left === null && right === null) return byOrder(a, b)
+      if (left === null) return 1
+      if (right === null) return -1
+      return right - left || byOrder(a, b)
+    })
+    return copy
+  }
+  if (mode === 'read') {
+    copy.sort((a, b) => countReads(reads, b.id, friendIds) - countReads(reads, a.id, friendIds) || byOrder(a, b))
+    return copy
+  }
+  copy.sort(byOrder)
+  return copy
+}
+
+export function sortedComments(reviews: readonly Review[], mode: CommentSort): Review[] {
+  const copy = reviews.slice()
+  if (mode === 'likes') {
+    copy.sort((a, b) => b.likes.length - a.likes.length || b.createdAt - a.createdAt)
+    return copy
+  }
+  copy.sort((a, b) => b.createdAt - a.createdAt)
+  return copy
+}
+
+/** Names are oldest nudge first. The sentence names the latest person. */
+export function nudgeLine(namesOldestFirst: readonly string[]): string {
+  if (namesOldestFirst.length === 0) return ''
+  const name = namesOldestFirst[namesOldestFirst.length - 1] ?? ''
+  if (namesOldestFirst.length === 1) return `${name}님이 빨리 읽으래용!`
+  return `${name}님 외 ${namesOldestFirst.length - 1}명이 빨리 읽으래용!`
 }

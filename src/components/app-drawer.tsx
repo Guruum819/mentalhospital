@@ -18,6 +18,7 @@ type Drag = {
 export function AppDrawer({
   me,
   others,
+  edgeSwipe = false,
   onSwitch,
   onAddAccount,
   onProfile,
@@ -26,6 +27,8 @@ export function AppDrawer({
 }: {
   me: Friend
   others: Friend[]
+  /** Left-edge swipe opens the drawer only on the main screen. */
+  edgeSwipe?: boolean
   onSwitch: (id: string) => void
   onAddAccount: () => void
   onProfile: () => void
@@ -104,18 +107,20 @@ export function AppDrawer({
   return (
     <div className="relative min-h-dvh">
       {children(() => toggle(true))}
-      <div
-        aria-hidden
-        className="fixed top-0 bottom-0 left-0 z-40 w-4"
-        style={{ touchAction: 'none' }}
-        onPointerDown={(event) => {
-          if (open) return
-          begin(event, 0)
-        }}
-        onPointerMove={move}
-        onPointerUp={end}
-        onPointerCancel={end}
-      />
+      {edgeSwipe ? (
+        <div
+          aria-hidden
+          className="fixed top-0 bottom-0 left-0 z-40 w-4"
+          style={{ touchAction: 'none' }}
+          onPointerDown={(event) => {
+            if (open) return
+            begin(event, 0)
+          }}
+          onPointerMove={move}
+          onPointerUp={end}
+          onPointerCancel={end}
+        />
+      ) : null}
       <button
         type="button"
         aria-label="메뉴 닫기"
