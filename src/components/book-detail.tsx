@@ -33,6 +33,7 @@ export function BookDetail({
   const [replyText, setReplyText] = useState('')
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editText, setEditText] = useState('')
+  const [openThreads, setOpenThreads] = useState<ReadonlySet<string>>(() => new Set())
   const reviews = topLevelReviews(shelf.data.reviews, book.id)
   const ordered = sortedComments(reviews, sort)
   const average = averageRating(reviews)
@@ -146,9 +147,10 @@ export function BookDetail({
                 <CommentItem
                   key={review.id}
                   review={review}
+                  depth={0}
                   me={me}
-                  replies={shelf.data.reviews.filter((item) => item.parentId === review.id).sort((a, b) => a.createdAt - b.createdAt)}
-                  replyOpen={replyTo === review.id}
+                  openThreads={openThreads}
+                  replyTo={replyTo}
                   replyText={replyTo === review.id ? replyText : ''}
                   editingId={editingId}
                   editText={editingId ? editText : ''}
@@ -171,6 +173,14 @@ export function BookDetail({
                   }}
                   onReplyText={setReplyText}
                   onSendReply={(id) => void sendReply(id)}
+                  onToggleThread={(id) => {
+                    setOpenThreads((current) => {
+                      const next = new Set(current)
+                      if (next.has(id)) next.delete(id)
+                      else next.add(id)
+                      return next
+                    })
+                  }}
                 />
               ))}
             </ul>
@@ -208,16 +218,24 @@ function SortPills<T extends string>({
   )
 }
 
+const INDENT_CAP = 3
+
+function descendantCount(reviews: readonly Review[], id: string): number {
+  const children = reviews.filter((review) => review.parentId === id)
+  return children.reduce((total, child) => total + 1 + descendantCount(reviews, child.id), 0)
+}
+
 function CommentItem({
   review,
+  depth,
+  parentName,
   me,
-  replies,
-  replyOpen,
+  openThreads,
+  replyTo,
   replyText,
   editingId,
   editText,
   pending,
-  nested = false,
   onOpenFriend,
   onLike,
   onDelete,
@@ -228,16 +246,18 @@ function CommentItem({
   onToggleReply,
   onReplyText,
   onSendReply,
+  onToggleThread,
 }: {
   review: Review
+  depth: number
+  parentName?: string
   me: Friend
-  replies: Review[]
-  replyOpen: boolean
+  openThreads: ReadonlySet<string>
+  replyTo: string | null
   replyText: string
   editingId: string | null
   editText: string
   pending: boolean
-  nested?: boolean
   onOpenFriend: (friendId: string) => void
   onLike: (id: string) => void
   onDelete: (id: string) => void
@@ -248,124 +268,147 @@ function CommentItem({
   onToggleReply: (id: string) => void
   onReplyText: (value: string) => void
   onSendReply: (id: string) => void
+  onToggleThread: (id: string) => void
 }) {
   const shelf = useShelf()
   const author = shelf.data.friends.find((friend) => friend.id === review.friendId)
   const liked = review.likes.includes(me.id)
   const mine = review.friendId === me.id
   const editing = editingId === review.id
+  const deleted = review.deleted === true
+  const replyOpen = replyTo === review.id
+  const children = shelf.data.reviews
+    .filter((item) => item.parentId === review.id)
+    .sort((a, b) => a.createdAt - b.createdAt)
+  const hiddenCount = descendantCount(shelf.data.reviews, review.id)
+  const foldable = depth === INDENT_CAP && hiddenCount > 0
+  const collapsed = foldable && !openThreads.has(review.id)
+  const mention = depth > INDENT_CAP ? parentName : undefined
 
   return (
-    <li className={`border-b border-border ${nested ? '' : ''}`}>
+    <li className={depth === 0 ? 'border-b border-border' : ''}>
       <div className="flex gap-3 px-4 py-3">
-        <button type="button" className="shrink-0" onClick={() => author && onOpenFriend(author.id)} aria-label={`${author?.name ?? '친구'} 프로필`}>
-          <Avatar name={author?.name ?? '?'} photo={author?.photo ?? null} size={nested ? 32 : 40} />
+        <button type="button" className="shrink-0" onClick={() => author && onOpenFriend(author.id)} aria-label={`${author?.name ?? '친구'} 프로필`} disabled={deleted}>
+          <Avatar name={deleted ? '삭' : (author?.name ?? '?')} photo={deleted ? null : (author?.photo ?? null)} size={depth === 0 ? 40 : 32} />
         </button>
         <div className="min-w-0 flex-1">
-          <div className="flex items-baseline gap-2">
-            <button type="button" className="truncate text-[15px] font-bold" onClick={() => author && onOpenFriend(author.id)}>
-              {author?.name ?? '알 수 없어용'}
-            </button>
-            <time className="shrink-0 text-[13px] text-muted-foreground">{formatTime(review.createdAt)}</time>
-            {review.editedAt ? <span className="shrink-0 text-[13px] text-muted-foreground">수정됨</span> : null}
-          </div>
-          {review.rating !== null && !nested ? <StarRating value={review.rating} readOnly size="sm" /> : null}
-          {editing ? (
-            <form
-              className="mt-1"
-              onSubmit={(event) => {
-                event.preventDefault()
-                onSaveEdit(review.id)
-              }}
-            >
-              <textarea
-                value={editText}
-                onChange={(event) => onEditText(event.target.value)}
-                maxLength={MAX_REVIEW}
-                rows={3}
-                className="w-full resize-none bg-transparent text-[15px] outline-none"
-              />
-              <div className="mt-1 flex gap-3">
-                <button type="submit" className="h-11 text-[15px] font-bold" disabled={pending || !editText.trim()}>
-                  저장
-                </button>
-                <button type="button" className="h-11 text-[15px] text-muted-foreground" onClick={onCancelEdit}>
-                  취소
-                </button>
-              </div>
-            </form>
+          {deleted ? (
+            <p className="text-[15px] text-muted-foreground">삭제된 댓글이에용</p>
           ) : (
-            <p className="mt-1 text-[15px] leading-snug whitespace-pre-wrap">{review.text}</p>
-          )}
-          <div className="mt-1 flex items-center gap-1">
-            <button
-              type="button"
-              className={`inline-flex h-11 items-center gap-1 px-1 text-[15px] font-medium ${liked ? 'text-foreground' : 'text-muted-foreground'}`}
-              aria-pressed={liked}
-              aria-label={liked ? '좋아요 취소' : '좋아요'}
-              onClick={() => onLike(review.id)}
-            >
-              <Heart className={`size-4 ${liked ? 'fill-current' : ''}`} />
-              {review.likes.length > 0 ? <span className="tabular-nums">{review.likes.length}</span> : null}
-            </button>
-            {nested ? null : (
-              <button type="button" className="h-11 px-2 text-[15px] font-medium text-muted-foreground" onClick={() => onToggleReply(review.id)}>
-                답글
-              </button>
-            )}
-            {mine && !editing ? (
-              <button type="button" className="h-11 px-2 text-[15px] font-medium text-muted-foreground" onClick={() => onStartEdit(review)}>
-                수정
-              </button>
-            ) : null}
-            {mine ? (
-              <button type="button" className="h-11 px-2 text-[15px] font-medium text-muted-foreground" onClick={() => onDelete(review.id)}>
-                삭제
-              </button>
-            ) : null}
-          </div>
-          {replyOpen ? (
-            <form
-              className="mt-1"
-              onSubmit={(event) => {
-                event.preventDefault()
-                onSendReply(review.id)
-              }}
-            >
-              <textarea
-                value={replyText}
-                onChange={(event) => onReplyText(event.target.value)}
-                maxLength={MAX_REVIEW}
-                rows={2}
-                placeholder="답글을 남겨 주세용"
-                className="w-full resize-none bg-transparent text-[15px] outline-none placeholder:text-muted-foreground"
-              />
-              <div className="flex items-center justify-between">
-                <p className="text-[13px] tabular-nums text-muted-foreground">
-                  {Array.from(replyText).length}/{MAX_REVIEW}
-                </p>
-                <Button type="submit" className="h-9 bg-x px-4 text-x-ink hover:bg-x/90" disabled={pending || !replyText.trim()}>
-                  답글
-                </Button>
+            <>
+              <div className="flex items-baseline gap-2">
+                <button type="button" className="truncate text-[15px] font-bold" onClick={() => author && onOpenFriend(author.id)}>
+                  {author?.name ?? '알 수 없어용'}
+                </button>
+                <time className="shrink-0 text-[13px] text-muted-foreground">{formatTime(review.createdAt)}</time>
+                {review.editedAt ? <span className="shrink-0 text-[13px] text-muted-foreground">수정됨</span> : null}
               </div>
-            </form>
+              {review.rating !== null && depth === 0 ? <StarRating value={review.rating} readOnly size="sm" /> : null}
+              {editing ? (
+                <form
+                  className="mt-1"
+                  onSubmit={(event) => {
+                    event.preventDefault()
+                    onSaveEdit(review.id)
+                  }}
+                >
+                  <textarea
+                    value={editText}
+                    onChange={(event) => onEditText(event.target.value)}
+                    maxLength={MAX_REVIEW}
+                    rows={3}
+                    className="w-full resize-none bg-transparent text-[15px] outline-none"
+                  />
+                  <div className="mt-1 flex gap-3">
+                    <button type="submit" className="h-11 text-[15px] font-bold" disabled={pending || !editText.trim()}>
+                      저장
+                    </button>
+                    <button type="button" className="h-11 text-[15px] text-muted-foreground" onClick={onCancelEdit}>
+                      취소
+                    </button>
+                  </div>
+                </form>
+              ) : (
+                <p className="mt-1 text-[15px] leading-snug whitespace-pre-wrap">
+                  {mention ? <span className="font-bold text-x">@{mention} </span> : null}
+                  {review.text}
+                </p>
+              )}
+              <div className="mt-1 flex items-center gap-1">
+                <button
+                  type="button"
+                  className={`inline-flex h-11 items-center gap-1 px-1 text-[15px] font-medium ${liked ? 'text-foreground' : 'text-muted-foreground'}`}
+                  aria-pressed={liked}
+                  aria-label={liked ? '좋아요 취소' : '좋아요'}
+                  onClick={() => onLike(review.id)}
+                >
+                  <Heart className={`size-4 ${liked ? 'fill-current' : ''}`} />
+                  {review.likes.length > 0 ? <span className="tabular-nums">{review.likes.length}</span> : null}
+                </button>
+                <button type="button" className="h-11 px-2 text-[15px] font-medium text-muted-foreground" onClick={() => onToggleReply(review.id)}>
+                  답글
+                </button>
+                {mine && !editing ? (
+                  <button type="button" className="h-11 px-2 text-[15px] font-medium text-muted-foreground" onClick={() => onStartEdit(review)}>
+                    수정
+                  </button>
+                ) : null}
+                {mine ? (
+                  <button type="button" className="h-11 px-2 text-[15px] font-medium text-muted-foreground" onClick={() => onDelete(review.id)}>
+                    삭제
+                  </button>
+                ) : null}
+              </div>
+              {replyOpen ? (
+                <form
+                  className="mt-1"
+                  onSubmit={(event) => {
+                    event.preventDefault()
+                    onSendReply(review.id)
+                  }}
+                >
+                  <textarea
+                    value={replyText}
+                    onChange={(event) => onReplyText(event.target.value)}
+                    maxLength={MAX_REVIEW}
+                    rows={2}
+                    placeholder="답글을 남겨 주세용"
+                    className="w-full resize-none bg-transparent text-[15px] outline-none placeholder:text-muted-foreground"
+                  />
+                  <div className="flex items-center justify-between">
+                    <p className="text-[13px] tabular-nums text-muted-foreground">
+                      {Array.from(replyText).length}/{MAX_REVIEW}
+                    </p>
+                    <Button type="submit" className="h-9 bg-x px-4 text-x-ink hover:bg-x/90" disabled={pending || !replyText.trim()}>
+                      답글
+                    </Button>
+                  </div>
+                </form>
+              ) : null}
+            </>
+          )}
+          {foldable ? (
+            <button type="button" className="mt-1 h-9 text-[13px] font-bold text-x" onClick={() => onToggleThread(review.id)}>
+              {collapsed ? `⌄ 답글 ${hiddenCount}개 자세히 보기` : '⌃ 접기'}
+            </button>
           ) : null}
         </div>
       </div>
-      {replies.length > 0 ? (
-        <ul className="ml-8 border-l border-border">
-          {replies.map((reply) => (
+      {!collapsed && children.length > 0 ? (
+        <ul className={depth < INDENT_CAP ? 'ml-8 border-l border-border' : ''}>
+          {children.map((reply) => (
             <CommentItem
               key={reply.id}
               review={reply}
+              depth={depth + 1}
+              parentName={author?.name ?? '친구'}
               me={me}
-              replies={[]}
-              replyOpen={false}
-              replyText=""
+              openThreads={openThreads}
+              replyTo={replyTo}
+              replyText={replyText}
               editingId={editingId}
               editText={editText}
               pending={pending}
-              nested
               onOpenFriend={onOpenFriend}
               onLike={onLike}
               onDelete={onDelete}
@@ -376,6 +419,7 @@ function CommentItem({
               onToggleReply={onToggleReply}
               onReplyText={onReplyText}
               onSendReply={onSendReply}
+              onToggleThread={onToggleThread}
             />
           ))}
         </ul>
