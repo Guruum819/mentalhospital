@@ -10,7 +10,6 @@ import {
   MAX_TITLE,
   cleanBirthday,
   cleanCover,
-  cleanPages,
   cleanPhoto,
   cleanReview,
   cleanText,
@@ -38,8 +37,6 @@ type BookInput = {
   author: string
   coverUrl: string | null
   buyerId: string
-  pages?: number | null
-  publisher?: string | null
 }
 
 type ShelfApi = {
@@ -436,7 +433,6 @@ export function ShelfProvider({ children }: { children: ReactNode }) {
           buyerId: input.buyerId,
           order: nextOrder(shelf.books),
           holderId: input.buyerId,
-          publisher: cleanText(input.publisher, 40),
         }
         const ok = await guard(() => repo.saveBook(book))
         if (ok) toast.success('책 추가했어용')
@@ -466,7 +462,6 @@ export function ShelfProvider({ children }: { children: ReactNode }) {
             author: cleanText(input.author, MAX_AUTHOR) ?? '',
             coverUrl,
             buyerId: current.buyerId,
-            pages: input.pages === undefined ? current.pages ?? null : cleanPages(input.pages),
           }),
         )
         if (ok) toast.success('저장했어용.')

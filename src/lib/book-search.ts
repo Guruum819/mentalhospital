@@ -5,7 +5,6 @@ export type BookHit = {
   title: string
   author: string
   coverUrl: string | null
-  publisher?: string | null
   source: 'kakao' | 'google' | 'openlibrary' | 'wiki'
 }
 
@@ -235,7 +234,6 @@ export function hitsFromKakao(payload: unknown): BookHit[] {
       title,
       author: namesOf(item.authors),
       coverUrl: kakaoCoverUrl(item.thumbnail),
-      publisher: typeof item.publisher === 'string' ? item.publisher.trim().slice(0, 40) : null,
       source: 'kakao',
     })
   })

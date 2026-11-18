@@ -12,7 +12,7 @@ import {
   titleForHangulQuery,
   type BookHit,
 } from '../src/lib/book-search.ts'
-import { cleanBirthday, cleanCover, cleanPages, cleanReview, dropMemberNotifications, findProfile, fromFirebase, fromPersisted, handoffAlertLine, holderAfterRemoval, holderLine, offerAlertLine, pendingPassLine, tookAlertLine, declineAlertLine, isSafeId, likeAlertLine, passTargets, resolvedHolderId, likeNotice, likeNoticeId, markedFinished, newId, nextNudgeSends, nextReviewsAfterDelete, nudgeAlertLine, nudgeAllowanceLine, nudgeLine, nudgeNotice, nudgesRemaining, readNotifications, replyAlertLine, replyNotice, requestAlertLine, requestNotice, reviewsAfterMemberRemoval, sameIdentity, seoulDay, sortedBooks, sortedComments, toggledRead, toPersisted, withNotification, withoutNotification } from '../src/lib/model.ts'
+import { cleanBirthday, cleanCover, cleanReview, dropMemberNotifications, findProfile, fromFirebase, fromPersisted, handoffAlertLine, holderAfterRemoval, holderLine, offerAlertLine, pendingPassLine, tookAlertLine, declineAlertLine, isSafeId, likeAlertLine, passTargets, resolvedHolderId, likeNotice, likeNoticeId, markedFinished, newId, nextNudgeSends, nextReviewsAfterDelete, nudgeAlertLine, nudgeAllowanceLine, nudgeLine, nudgeNotice, nudgesRemaining, readNotifications, replyAlertLine, replyNotice, requestAlertLine, requestNotice, reviewsAfterMemberRemoval, sameIdentity, seoulDay, sortedBooks, sortedComments, toggledRead, toPersisted, withNotification, withoutNotification } from '../src/lib/model.ts'
 import { cleanPatchDate, cleanPatchLines, visiblePatchNotes } from '../src/lib/patch-notes.ts'
 import { formatPatchDate } from '../src/lib/patch-notes.ts'
 import { PALETTE } from '../src/lib/palette.ts'
@@ -395,18 +395,14 @@ test('patch notes seed once and then follow the saved list', () => {
   assert.equal(roundTrip?.patchNotesReady, true)
 })
 
-test('page count is optional and a missing holder stays with the buyer', () => {
-  assert.equal(cleanPages('320'), 320)
-  assert.equal(cleanPages('0'), null)
-  assert.equal(cleanPages('nope'), null)
+test('a missing holder stays with the buyer', () => {
   const shelf = fromFirebase({
     friends: { me: { name: '민주', order: 1, color: 'rose', birthday: '1996-04-12' } },
     books: {
-      bought: { title: '흰', author: '한강', buyerId: 'me', order: 2, pages: 248 },
+      bought: { title: '흰', author: '한강', buyerId: 'me', order: 2 },
       held: { title: '작별인사', author: '김영하', buyerId: 'other', holderId: 'me', order: 1 },
     },
   })
-  assert.equal(shelf.books.find((book) => book.id === 'bought')?.pages, 248)
   const ids = new Set(['me'])
   assert.equal(resolvedHolderId(shelf.books.find((book) => book.id === 'bought')!, ids), 'me')
   assert.equal(resolvedHolderId(shelf.books.find((book) => book.id === 'held')!, ids), 'me')

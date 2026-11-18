@@ -232,14 +232,6 @@ export function cleanCover(value: unknown): string | null {
   return url
 }
 
-export function cleanPages(value: unknown): number | null {
-  const raw = typeof value === 'number' ? value : typeof value === 'string' && value.trim() ? Number(value) : NaN
-  if (!Number.isFinite(raw)) return null
-  const pages = Math.round(raw)
-  if (pages < 1 || pages > 9999) return null
-  return pages
-}
-
 function bookFrom(id: string, raw: unknown): Book | null {
   if (!isSafeId(id) || !isRecord(raw)) return null
   const title = cleanText(raw.title, MAX_TITLE)
@@ -249,8 +241,6 @@ function bookFrom(id: string, raw: unknown): Book | null {
   let holderId: string | null | undefined
   if (raw.holderId === '') holderId = ''
   else if (typeof raw.holderId === 'string' && isSafeId(raw.holderId)) holderId = raw.holderId
-  const pages = cleanPages(raw.pages)
-  const publisher = cleanText(raw.publisher, 40)
   return {
     id,
     title,
@@ -258,8 +248,6 @@ function bookFrom(id: string, raw: unknown): Book | null {
     coverUrl: cleanCover(raw.coverUrl),
     buyerId,
     order,
-    ...(pages ? { pages } : {}),
-    ...(publisher ? { publisher } : {}),
     ...(holderId !== undefined ? { holderId } : {}),
   }
 }
@@ -705,8 +693,6 @@ export function booksRecord(books: readonly Book[]) {
         coverUrl: book.coverUrl ?? '',
         buyerId: book.buyerId,
         order: book.order,
-        pages: book.pages ?? null,
-        publisher: book.publisher ?? '',
       },
     ]),
   )
