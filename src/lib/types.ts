@@ -74,6 +74,8 @@ export type Book = {
   order: number
   /** Page count, when someone has filled it in. Spines use it for thickness. */
   pages?: number | null
+  /** Printed on the spine when Kakao search provided it. */
+  publisher?: string | null
   /**
    * Who physically has the copy.
    * Missing or null follows the buyer. '' means nobody has it.

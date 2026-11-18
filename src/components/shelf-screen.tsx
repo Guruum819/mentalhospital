@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Bell, Plus } from 'lucide-react'
+import { Bell } from 'lucide-react'
 import { toast } from 'sonner'
 import { forgetAccount, readAccounts, readWho, rememberAccount, signOutAccount } from '@/lib/identity'
 import { nudgeLine, shelfStats, sortedBooks, unreadNotificationCount, visibleFriends } from '@/lib/model'
@@ -18,6 +18,8 @@ import { ProfileGate } from '@/components/profile-gate'
 import { ProfilePage } from '@/components/profile-page'
 import { MyShelfPage } from '@/components/my-shelf-page'
 import { SettingsPage } from '@/components/settings-page'
+import { TextTabs } from '@/components/text-tabs'
+import { AddBookButton } from '@/components/add-book-button'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -434,20 +436,15 @@ export function ShelfScreen() {
                   </button>
                 ))}
               </div>
-              <div className="flex gap-4 border-b border-border px-4" role="tablist" aria-label="책 정렬">
-                {SORTS.map(([id, label]) => (
-                  <button
-                    key={id}
-                    type="button"
-                    role="tab"
-                    aria-selected={sort === id}
-                    className={`h-11 text-[14px] font-bold ${sort === id ? 'text-x underline decoration-x decoration-2 underline-offset-8' : 'text-muted-foreground'}`}
-                    onClick={() => chooseSort(id)}
-                  >
-                    {id === 'popular' && sort === 'popular' ? `인기순 ${popularAscending ? '↑' : '↓'}` : label}
-                  </button>
-                ))}
-              </div>
+              <TextTabs
+                label="책 정렬"
+                value={sort}
+                tabs={SORTS.map(([id, label]) => ({
+                  id,
+                  label: id === 'popular' && sort === 'popular' ? `인기순 ${popularAscending ? '↑' : '↓'}` : label,
+                }))}
+                onChange={chooseSort}
+              />
               <div className="pb-28">
                 {books.length === 0 ? (
                   <div className="px-8 py-16 text-center">
@@ -471,17 +468,12 @@ export function ShelfScreen() {
                   ))
                 )}
               </div>
-              <button
-                type="button"
-                aria-label="책 추가"
-                className="fixed right-4 bottom-[max(1rem,env(safe-area-inset-bottom))] z-30 grid size-14 place-items-center rounded-full bg-x text-white shadow-[0_4px_16px_rgba(29,155,240,0.45)]"
+              <AddBookButton
                 onClick={() => {
                   setEditingBook(null)
                   setBookOpen(true)
                 }}
-              >
-                <Plus className="size-7" strokeWidth={2.5} />
-              </button>
+              />
             </>
           )}
           <BookDialog open={bookOpen} book={editingBook} onOpenChange={setBookOpen} />

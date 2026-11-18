@@ -94,7 +94,7 @@ export function BookDialog({
   const buyerId = book?.buyerId || readWho() || ''
   const keyboard = useKeyboardBox()
 
-  async function createFrom(hit: { id?: string; title: string; author: string; coverUrl: string | null }) {
+  async function createFrom(hit: { id?: string; title: string; author: string; coverUrl: string | null; publisher?: string | null }) {
     if (pendingId) return
     setPendingId(hit.id ?? 'manual')
     const ok = await shelf.addBook({
@@ -102,6 +102,7 @@ export function BookDialog({
       author: hit.author,
       coverUrl: hit.coverUrl,
       buyerId,
+      publisher: hit.publisher ?? null,
     })
     setPendingId(null)
     if (ok) onOpenChange(false)

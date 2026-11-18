@@ -250,6 +250,7 @@ function bookFrom(id: string, raw: unknown): Book | null {
   if (raw.holderId === '') holderId = ''
   else if (typeof raw.holderId === 'string' && isSafeId(raw.holderId)) holderId = raw.holderId
   const pages = cleanPages(raw.pages)
+  const publisher = cleanText(raw.publisher, 40)
   return {
     id,
     title,
@@ -258,6 +259,7 @@ function bookFrom(id: string, raw: unknown): Book | null {
     buyerId,
     order,
     ...(pages ? { pages } : {}),
+    ...(publisher ? { publisher } : {}),
     ...(holderId !== undefined ? { holderId } : {}),
   }
 }
@@ -704,6 +706,7 @@ export function booksRecord(books: readonly Book[]) {
         buyerId: book.buyerId,
         order: book.order,
         pages: book.pages ?? null,
+        publisher: book.publisher ?? '',
       },
     ]),
   )

@@ -330,6 +330,7 @@ function createFirebaseRepo(): ShelfRepository {
         [`books/${book.id}/buyerId`]: book.buyerId,
         [`books/${book.id}/order`]: book.order,
         [`books/${book.id}/pages`]: book.pages ?? null,
+        [`books/${book.id}/publisher`]: book.publisher ?? '',
       }
       if (creating) values[`books/${book.id}/holderId`] = book.holderId || book.buyerId
       await write(values)

@@ -2,7 +2,8 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { ChevronLeft, ImageOff } from 'lucide-react'
 import { resolvedHolderId } from '@/lib/model'
 import type { Book, ReadMap } from '@/lib/types'
-import { Button } from '@/components/ui/button'
+import { TextTabs } from '@/components/text-tabs'
+import { AddBookButton } from '@/components/add-book-button'
 
 type Tab = 'bought' | 'holding' | 'read'
 
@@ -39,44 +40,29 @@ export function MyShelfPage({
 
   return (
     <div className="min-h-dvh bg-background">
-      <header className="sticky top-0 z-20 border-b border-border bg-background/80 backdrop-blur-md pt-[env(safe-area-inset-top)]">
+      <header className="sticky top-0 z-20 bg-background/80 backdrop-blur-md pt-[env(safe-area-inset-top)]">
         <div className="relative flex h-14 items-center">
           <button type="button" className="grid size-11 place-items-center" onClick={onBack} aria-label="뒤로">
             <ChevronLeft className="size-6" />
           </button>
           <h1 className="pointer-events-none absolute inset-x-14 text-center text-[17px] font-bold">내 서재</h1>
         </div>
-        <div className="flex" role="tablist" aria-label="내 서재">
-          {TABS.map(([id, label]) => {
-            const on = tab === id
-            return (
-              <button
-                key={id}
-                type="button"
-                role="tab"
-                aria-selected={on}
-                className={`h-11 flex-1 text-[15px] font-bold ${on ? 'border-b-2 border-x text-x' : 'text-muted-foreground'}`}
-                onClick={() => setTab(id)}
-              >
-                {label}
-              </button>
-            )
-          })}
-        </div>
+        <TextTabs
+          label="내 서재"
+          value={tab}
+          tabs={TABS.map(([id, label]) => ({ id, label }))}
+          onChange={setTab}
+        />
       </header>
-      {tab === 'bought' ? (
-        <div className="px-4 pt-4">
-          <Button type="button" className="h-11 w-full bg-x text-white hover:bg-x/90" onClick={onAdd}>
-            책 추가
-          </Button>
-        </div>
-      ) : null}
-      {shown.length === 0 ? (
+      {tab === 'read' ? (
+        <>
+          {shown.length === 0 ? <p className="px-6 pt-8 text-center text-[15px] text-muted-foreground">{emptyCopy(tab)}</p> : null}
+          <Bookshelf books={shown} onOpen={onOpenBook} />
+        </>
+      ) : shown.length === 0 ? (
         <p className="px-6 py-16 text-center text-[15px] text-muted-foreground">{emptyCopy(tab)}</p>
-      ) : tab === 'read' ? (
-        <Bookshelf books={shown} onOpen={onOpenBook} />
       ) : (
-        <ul className="grid grid-cols-3 gap-x-3 gap-y-5 px-4 py-4">
+        <ul className={`grid grid-cols-3 gap-x-3 gap-y-5 px-4 py-4 ${tab === 'bought' ? 'pb-28' : ''}`}>
           {shown.map((book) => (
             <li key={book.id}>
               <button type="button" className="w-full text-left" onClick={() => onOpenBook(book.id)}>
@@ -87,6 +73,7 @@ export function MyShelfPage({
           ))}
         </ul>
       )}
+      {tab === 'bought' ? <AddBookButton onClick={onAdd} /> : null}
     </div>
   )
 }
@@ -130,27 +117,23 @@ function Bookshelf({ books, onOpen }: { books: readonly Book[]; onOpen: (bookId:
     <div ref={ref} className="px-4 py-6">
       {rows.map((row, index) => (
         <div key={row[0]?.id ?? index} className="mb-7">
-          <div className="flex items-end gap-1">
+          <div className="flex items-end gap-1" style={row.length === 0 ? { minHeight: 96 } : undefined}>
             {row.map((book) => {
               const spine = spineOf(book)
               return (
                 <button
                   key={book.id}
                   type="button"
-                  className="relative shrink-0 overflow-hidden rounded-t-sm shadow-[inset_-6px_0_8px_rgba(0,0,0,0.18)] transition-opacity duration-200"
+                  className="relative shrink-0 overflow-hidden rounded-t-[2px] transition-opacity duration-200"
                   style={{
                     width: spine.width,
                     height: spine.height,
-                    backgroundColor: spine.color,
-                    color: spine.ink,
                     opacity: pulled?.book.id === book.id ? 0 : 1,
                   }}
                   onClick={(event) => setPulled({ book, from: event.currentTarget.getBoundingClientRect() })}
                   aria-label={book.title}
                 >
-                  <span className="absolute inset-x-0 top-2 bottom-2 flex items-start justify-center overflow-hidden text-[11px] leading-tight font-bold [writing-mode:vertical-rl]">
-                    {book.title}
-                  </span>
+                  <SpineFace book={book} />
                 </button>
               )
             })}
@@ -184,7 +167,6 @@ function PulledBook({
   const reduced = useRef(window.matchMedia('(prefers-reduced-motion: reduce)').matches)
   const [open, setOpen] = useState(reduced.current)
   const [closing, setClosing] = useState(false)
-  const spine = spineOf(book)
   const coverW = Math.min(220, window.innerWidth - 80)
   const coverH = Math.round(coverW * 1.5)
   const endX = (window.innerWidth - coverW) / 2
@@ -257,16 +239,9 @@ function PulledBook({
           >
             <div
               className="absolute inset-0 overflow-hidden rounded-sm shadow-lg"
-              style={{
-                backgroundColor: spine.color,
-                color: spine.ink,
-                backfaceVisibility: 'hidden',
-                WebkitBackfaceVisibility: 'hidden',
-              }}
+              style={{ backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden' }}
             >
-              <span className="absolute inset-x-0 top-3 bottom-3 flex items-start justify-center text-[13px] font-bold [writing-mode:vertical-rl]">
-                {book.title}
-              </span>
+              <SpineFace book={book} />
             </div>
             <div
               className="absolute inset-0 overflow-hidden rounded-md border border-white/20 bg-muted shadow-2xl"
@@ -318,6 +293,7 @@ function packShelves(books: readonly Book[], inner: number): Book[][] {
     used += (row.length > 1 ? 4 : 0) + width
   }
   if (row.length) rows.push(row)
+  while (rows.length < 3) rows.push([])
   return rows
 }
 
@@ -328,6 +304,127 @@ function spineOf(book: Book) {
   const height = 128 + (hash(book.title) % 40)
   const color = SPINE_COLORS[seed % SPINE_COLORS.length]
   return { width, height, color, ink: inkFor(color) }
+}
+
+const coverTones = new Map<string, string>()
+
+function SpineFace({ book }: { book: Book }) {
+  const base = spineOf(book)
+  const tone = useCoverTone(book.coverUrl, base.color)
+  const ink = inkFor(tone)
+  const thin = base.width < 26
+  return (
+    <span className="absolute inset-0" style={{ backgroundColor: tone, color: ink }}>
+      {book.coverUrl ? (
+        <span
+          aria-hidden
+          className="absolute inset-0"
+          style={{
+            backgroundImage: `url("${book.coverUrl.replace(/["\\)]/g, '')}")`,
+            backgroundRepeat: 'no-repeat',
+            backgroundSize: 'auto 118%',
+            backgroundPosition: 'left center',
+            filter: 'blur(0.4px) saturate(1.08)',
+            transform: 'scaleX(1.35)',
+          }}
+        />
+      ) : null}
+      <span
+        aria-hidden
+        className="absolute inset-0"
+        style={{
+          background:
+            'linear-gradient(90deg, rgba(0,0,0,0.42) 0%, rgba(255,255,255,0.14) 20%, rgba(0,0,0,0.06) 52%, rgba(0,0,0,0.38) 100%)',
+        }}
+      />
+      <span aria-hidden className="absolute inset-x-0 top-0 h-[5px] bg-black/30" />
+      <span aria-hidden className="absolute inset-x-0 bottom-0 h-[6px] bg-black/40" />
+      <span className="absolute inset-0 flex flex-col items-center justify-between py-2">
+        <span className={`max-h-[52%] overflow-hidden font-bold leading-none [writing-mode:vertical-rl] ${thin ? 'text-[9px]' : 'text-[11px]'}`}>
+          {book.title}
+        </span>
+        <span className="max-h-[22%] overflow-hidden text-[8px] leading-none opacity-85 [writing-mode:vertical-rl]">
+          {book.author || '저자 미상'}
+        </span>
+        {book.publisher ? (
+          <span className="max-h-[16%] overflow-hidden text-[7px] leading-none opacity-70 [writing-mode:vertical-rl]">{book.publisher}</span>
+        ) : null}
+      </span>
+    </span>
+  )
+}
+
+function useCoverTone(url: string | null, fallback: string) {
+  const [tone, setTone] = useState(() => (url && coverTones.get(url)) || fallback)
+  useEffect(() => {
+    if (!url) return
+    const cached = coverTones.get(url)
+    if (cached) {
+      setTone(cached)
+      return
+    }
+    let cancel = false
+    const image = new Image()
+    image.crossOrigin = 'anonymous'
+    image.onload = () => {
+      const sampled = sampleCover(image)
+      if (!sampled) return
+      coverTones.set(url, sampled)
+      if (!cancel) setTone(sampled)
+    }
+    image.src = url
+    return () => {
+      cancel = true
+    }
+  }, [url, fallback])
+  return tone
+}
+
+function sampleCover(image: HTMLImageElement): string | null {
+  const canvas = document.createElement('canvas')
+  const size = 12
+  canvas.width = size
+  canvas.height = size
+  const ctx = canvas.getContext('2d', { willReadFrequently: true })
+  if (!ctx) return null
+  let data: Uint8ClampedArray
+  try {
+    ctx.drawImage(image, 0, 0, size, size)
+    data = ctx.getImageData(0, 0, size, size).data
+  } catch {
+    return null
+  }
+  const buckets = new Map<string, { r: number; g: number; b: number; n: number }>()
+  for (let i = 0; i < data.length; i += 4) {
+    if (data[i + 3] < 160) continue
+    const r = data[i] ?? 0
+    const g = data[i + 1] ?? 0
+    const b = data[i + 2] ?? 0
+    const max = Math.max(r, g, b)
+    const min = Math.min(r, g, b)
+    if (max > 246 && min > 236) continue
+    if (max < 14) continue
+    const key = `${Math.round(r / 24)}-${Math.round(g / 24)}-${Math.round(b / 24)}`
+    const bucket = buckets.get(key) ?? { r: 0, g: 0, b: 0, n: 0 }
+    bucket.r += r
+    bucket.g += g
+    bucket.b += b
+    bucket.n += 1
+    buckets.set(key, bucket)
+  }
+  let best: { r: number; g: number; b: number; n: number } | null = null
+  for (const bucket of buckets.values()) {
+    if (!best || bucket.n > best.n) best = bucket
+  }
+  if (!best || best.n < 3) return null
+  return tuneColor(best.r / best.n, best.g / best.n, best.b / best.n)
+}
+
+function tuneColor(r: number, g: number, b: number) {
+  const lum = (r * 299 + g * 587 + b * 114) / 1000
+  const scale = lum > 190 ? 0.55 : lum < 40 ? 1.4 : 0.82
+  const clamp = (n: number) => Math.max(0, Math.min(255, Math.round(n * scale)))
+  return `#${clamp(r).toString(16).padStart(2, '0')}${clamp(g).toString(16).padStart(2, '0')}${clamp(b).toString(16).padStart(2, '0')}`
 }
 
 function hash(value: string) {

@@ -39,6 +39,7 @@ type BookInput = {
   coverUrl: string | null
   buyerId: string
   pages?: number | null
+  publisher?: string | null
 }
 
 type ShelfApi = {
@@ -435,6 +436,7 @@ export function ShelfProvider({ children }: { children: ReactNode }) {
           buyerId: input.buyerId,
           order: nextOrder(shelf.books),
           holderId: input.buyerId,
+          publisher: cleanText(input.publisher, 40),
         }
         const ok = await guard(() => repo.saveBook(book))
         if (ok) toast.success('책 추가했어용')
