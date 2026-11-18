@@ -6,6 +6,12 @@ export type PatchNote = {
 
 export const PATCH_NOTES: PatchNote[] = [
   {
+    date: '2026-11-18',
+    lines: [
+      '댓글에 답글을 끝없이 달 수 있게 했어용. 깊어지면 접혀 있고 자세히 보기로 펼칠 수 있어용.',
+    ],
+  },
+  {
     date: '2026-11-17',
     lines: [
       '보안을 강화했어용!',
