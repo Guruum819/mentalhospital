@@ -34,7 +34,7 @@ type View =
   | { name: 'settings'; postId?: string }
   | { name: 'alerts' }
   | { name: 'profile'; friendId: string }
-  | { name: 'mine' }
+  | { name: 'mine'; friendId: string }
   | { name: 'book'; bookId: string }
 
 type Confirm =
@@ -98,7 +98,10 @@ export function ShelfScreen() {
     const missingProfile =
       current.name === 'profile' &&
       !shelf.data.friends.some((friend) => friend.id === current.friendId && friend.approved)
-    if (missingBook || missingProfile) {
+    const missingShelf =
+      current.name === 'mine' &&
+      !shelf.data.friends.some((friend) => friend.id === current.friendId && friend.approved)
+    if (missingBook || missingProfile || missingShelf) {
       setStack((items) => (items.length > 1 ? items.slice(0, -1) : [{ name: 'home' }]))
     }
   }, [stack, shelf.ready, shelf.data.books, shelf.data.friends])
@@ -285,6 +288,7 @@ export function ShelfScreen() {
     (book) => shelf.data.reading[book.id] === me.id && (shelf.data.nudges[book.id]?.length ?? 0) > 0,
   )
   const profileFriend = top.name === 'profile' ? members.find((friend) => friend.id === top.friendId) ?? null : null
+  const shelfFriend = top.name === 'mine' ? members.find((friend) => friend.id === top.friendId) ?? null : null
   const detail = top.name === 'book' ? shelf.data.books.find((book) => book.id === top.bookId) ?? null : null
 
   return (
@@ -295,23 +299,28 @@ export function ShelfScreen() {
       onSwitch={enter}
       onAddAccount={() => setAccount('login')}
       onProfile={() => setStack([{ name: 'home' }, { name: 'profile', friendId: me.id }])}
-      onMine={() => setStack([{ name: 'home' }, { name: 'mine' }])}
+      onMine={() => setStack([{ name: 'home' }, { name: 'mine', friendId: me.id }])}
       onSettings={() => setStack([{ name: 'home' }, { name: 'settings' }])}
     >
       {(openDrawer) => (
         <div className="mx-auto flex min-h-dvh w-full max-w-[600px] flex-col">
-          {top.name === 'mine' ? (
+          {top.name === 'mine' && shelfFriend ? (
             <MyShelfPage
-              meId={me.id}
+              meId={shelfFriend.id}
+              title={shelfFriend.id === me.id ? '내 서재' : `${shelfFriend.name}의 서재`}
               books={shelf.data.books}
               reads={shelf.data.reads}
               approvedIds={new Set(members.map((friend) => friend.id))}
               onBack={pop}
               onOpenBook={(bookId) => push({ name: 'book', bookId })}
-              onAdd={() => {
-                setEditingBook(null)
-                setBookOpen(true)
-              }}
+              onAdd={
+                shelfFriend.id === me.id
+                  ? () => {
+                      setEditingBook(null)
+                      setBookOpen(true)
+                    }
+                  : undefined
+              }
             />
           ) : top.name === 'profile' && profileFriend ? (
             <ProfilePage
@@ -319,6 +328,7 @@ export function ShelfScreen() {
               mine={profileFriend.id === me.id}
               onBack={pop}
               onEdit={() => setAccount('edit')}
+              onOpenShelf={() => push({ name: 'mine', friendId: profileFriend.id })}
               onOpenBook={(bookId) => push({ name: 'book', bookId })}
             />
           ) : top.name === 'settings' ? (

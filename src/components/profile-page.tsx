@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ChevronLeft } from 'lucide-react'
+import { ChevronLeft, Library } from 'lucide-react'
 import { paletteColor } from '@/lib/palette'
 import { useShelf } from '@/lib/store'
 import type { Friend } from '@/lib/types'
@@ -12,12 +12,14 @@ export function ProfilePage({
   mine,
   onBack,
   onEdit,
+  onOpenShelf,
   onOpenBook,
 }: {
   friend: Friend
   mine: boolean
   onBack: () => void
   onEdit: () => void
+  onOpenShelf: () => void
   onOpenBook: (bookId: string) => void
 }) {
   const shelf = useShelf()
@@ -39,23 +41,31 @@ export function ProfilePage({
         </div>
       </header>
       <div className="h-24" style={{ backgroundColor: accent }} />
-      <div className="px-4">
+      <div className="flex items-center justify-between px-4">
         <div className="-mt-10 w-fit rounded-full bg-background p-1">
           <Avatar name={friend.name} photo={friend.photo} size={80} />
         </div>
-        <div className="mt-3 flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <h2 className="truncate text-xl font-extrabold tracking-tight">{friend.name}</h2>
-            <p className="text-[15px] text-muted-foreground">
-              읽은 책 {readBooks.length} · 코멘트 {comments.length}
-            </p>
-          </div>
-          {mine ? (
-            <Button type="button" variant="outline" className="h-9 shrink-0 px-4" onClick={onEdit}>
-              프로필 수정
-            </Button>
-          ) : null}
+        <button
+          type="button"
+          className="inline-flex h-9 items-center gap-1.5 rounded-full border border-foreground bg-background px-4 text-[15px] font-bold text-foreground"
+          onClick={onOpenShelf}
+        >
+          <Library className="size-4" />
+          서재
+        </button>
+      </div>
+      <div className="mt-3 flex items-start justify-between gap-3 px-4">
+        <div className="min-w-0">
+          <h2 className="truncate text-xl font-extrabold tracking-tight">{friend.name}</h2>
+          <p className="text-[15px] text-muted-foreground">
+            읽은 책 {readBooks.length} · 코멘트 {comments.length}
+          </p>
         </div>
+        {mine ? (
+          <Button type="button" variant="outline" className="h-9 shrink-0 px-4" onClick={onEdit}>
+            프로필 수정
+          </Button>
+        ) : null}
       </div>
       <div className="mt-4 flex border-b border-border" role="tablist">
         {(

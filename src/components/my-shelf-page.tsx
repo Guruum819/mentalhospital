@@ -17,6 +17,7 @@ const SPINE_COLORS = ['#6e3b3b', '#2f4a3c', '#1e3a5f', '#5c4a32', '#3d3a55', '#7
 
 export function MyShelfPage({
   meId,
+  title,
   books,
   reads,
   approvedIds,
@@ -25,12 +26,13 @@ export function MyShelfPage({
   onAdd,
 }: {
   meId: string
+  title: string
   books: readonly Book[]
   reads: ReadMap
   approvedIds: ReadonlySet<string>
   onBack: () => void
   onOpenBook: (bookId: string) => void
-  onAdd: () => void
+  onAdd?: () => void
 }) {
   const [tab, setTab] = useState<Tab>('bought')
   const bought = books.filter((book) => book.buyerId === meId)
@@ -45,7 +47,7 @@ export function MyShelfPage({
           <button type="button" className="grid size-11 place-items-center" onClick={onBack} aria-label="뒤로">
             <ChevronLeft className="size-6" />
           </button>
-          <h1 className="pointer-events-none absolute inset-x-14 text-center text-[17px] font-bold">내 서재</h1>
+          <h1 className="pointer-events-none absolute inset-x-14 truncate text-center text-[17px] font-bold">{title}</h1>
         </div>
         <TextTabs
           label="내 서재"
@@ -62,7 +64,7 @@ export function MyShelfPage({
       ) : shown.length === 0 ? (
         <p className="px-6 py-16 text-center text-[15px] text-muted-foreground">{emptyCopy(tab)}</p>
       ) : (
-        <ul className={`grid grid-cols-3 gap-x-3 gap-y-5 px-4 py-4 ${tab === 'bought' ? 'pb-28' : ''}`}>
+        <ul className={`grid grid-cols-3 gap-x-3 gap-y-5 px-4 py-4 ${tab === 'bought' && onAdd ? 'pb-28' : ''}`}>
           {shown.map((book) => (
             <li key={book.id}>
               <button type="button" className="w-full text-left" onClick={() => onOpenBook(book.id)}>
@@ -73,7 +75,7 @@ export function MyShelfPage({
           ))}
         </ul>
       )}
-      {tab === 'bought' ? <AddBookButton onClick={onAdd} /> : null}
+      {tab === 'bought' && onAdd ? <AddBookButton onClick={onAdd} /> : null}
     </div>
   )
 }
