@@ -4,7 +4,7 @@ import { toast } from 'sonner'
 import { APP_BUILD_TIME, fetchDeployedBuildTime, formatBuildLabel, isNewerBuild, reloadLatestBuild } from '@/lib/app-build'
 import { readWho } from '@/lib/identity'
 import { MAX_REVIEW, resolvedHolderId } from '@/lib/model'
-import { formatPatchDate, patchNotesNewestFirst } from '@/lib/patch-notes'
+import { formatPatchDate, visiblePatchNotes } from '@/lib/patch-notes'
 import { useShelf } from '@/lib/store'
 import type { Friend } from '@/lib/types'
 import { Avatar } from '@/components/avatar-editor'
@@ -78,11 +78,15 @@ export function SettingsPage({
   const requestDetail = openRequestCount > 0 ? `답변 전 ${openRequestCount}개` : '답변 전인 글이 없어용'
 
   if (panel === 'patches') {
-    return <PatchList onBack={() => setPanel('root')} onOpen={(date) => setPanel(date)} />
+    return <PatchList onBack={() => setPanel('root')} onOpen={(id) => setPanel(id)} onAdd={() => setPanel('new-patch')} />
+  }
+
+  if (panel === 'new-patch') {
+    return <PatchEditor noteId={null} onBack={() => setPanel('patches')} onDone={() => setPanel('patches')} />
   }
 
   if (panel !== 'root' && panel !== 'board') {
-    return <PatchDay date={panel} onBack={() => setPanel('patches')} />
+    return <PatchDay noteId={panel} onBack={() => setPanel('patches')} />
   }
 
   if (panel === 'board') {
@@ -209,39 +213,155 @@ function ScreenHeader({ title, onBack }: { title: string; onBack: () => void }) 
   )
 }
 
-function PatchList({ onBack, onOpen }: { onBack: () => void; onOpen: (date: string) => void }) {
-  const notes = patchNotesNewestFirst()
+function PatchList({
+  onBack,
+  onOpen,
+  onAdd,
+}: {
+  onBack: () => void
+  onOpen: (id: string) => void
+  onAdd: () => void
+}) {
+  const shelf = useShelf()
+  const notes = visiblePatchNotes(shelf.data.patchNotesReady, shelf.data.patchNotes)
   return (
     <EdgeBack onBack={onBack}>
       <div className="min-h-dvh bg-background">
         <ScreenHeader title="패치노트" onBack={onBack} />
+        {shelf.admin ? (
+          <div className="px-4 py-3">
+            <Button type="button" className="h-11 w-full bg-x text-x-ink hover:bg-x/90" onClick={onAdd}>
+              패치노트 추가
+            </Button>
+          </div>
+        ) : null}
         <div className="grid">
           {notes.map((note) => (
-            <SettingsRow key={note.date} label={formatPatchDate(note.date)} onClick={() => onOpen(note.date)} />
+            <SettingsRow key={note.id} label={formatPatchDate(note.date)} onClick={() => onOpen(note.id)} />
           ))}
         </div>
+        {notes.length === 0 ? <p className="px-4 py-8 text-[15px] text-muted-foreground">패치노트가 없어용.</p> : null}
       </div>
     </EdgeBack>
   )
 }
 
-function PatchDay({ date, onBack }: { date: string; onBack: () => void }) {
-  const note = patchNotesNewestFirst().find((item) => item.date === date)
+function PatchDay({ noteId, onBack }: { noteId: string; onBack: () => void }) {
+  const shelf = useShelf()
+  const note = visiblePatchNotes(shelf.data.patchNotesReady, shelf.data.patchNotes).find((item) => item.id === noteId) ?? null
+  const [editing, setEditing] = useState(false)
+  if (shelf.admin && editing && note) {
+    return <PatchEditor noteId={note.id} onBack={() => setEditing(false)} onDone={onBack} />
+  }
   return (
     <EdgeBack onBack={onBack}>
       <div className="min-h-dvh bg-background">
-        <ScreenHeader title={formatPatchDate(date)} onBack={onBack} />
+        <ScreenHeader title={note ? formatPatchDate(note.date) : '패치노트'} onBack={onBack} />
         {note ? (
-          <ul className="px-4 py-4 space-y-3">
-            {note.lines.map((line) => (
-              <li key={line} className="text-[15px] leading-snug">
-                {line}
-              </li>
-            ))}
-          </ul>
+          <>
+            <ul className="px-4 py-4 space-y-3">
+              {note.lines.map((line, index) => (
+                <li key={`${index}-${line}`} className="text-[15px] leading-snug">
+                  {line}
+                </li>
+              ))}
+            </ul>
+            {shelf.admin ? (
+              <div className="px-4">
+                <Button type="button" variant="outline" className="h-11" onClick={() => setEditing(true)}>
+                  수정
+                </Button>
+              </div>
+            ) : null}
+          </>
         ) : (
-          <p className="px-4 py-8 text-[15px] text-muted-foreground">이 날짜의 노트가 없어용.</p>
+          <p className="px-4 py-8 text-[15px] text-muted-foreground">이 패치노트가 없어용.</p>
         )}
+      </div>
+    </EdgeBack>
+  )
+}
+
+function PatchEditor({
+  noteId,
+  onBack,
+  onDone,
+}: {
+  noteId: string | null
+  onBack: () => void
+  onDone: () => void
+}) {
+  const shelf = useShelf()
+  const note = noteId
+    ? visiblePatchNotes(shelf.data.patchNotesReady, shelf.data.patchNotes).find((item) => item.id === noteId) ?? null
+    : null
+  const [date, setDate] = useState(note?.date ?? '')
+  const [text, setText] = useState(note?.lines.join('\n') ?? '')
+  const [pending, setPending] = useState(false)
+  const [confirming, setConfirming] = useState(false)
+
+  async function save(event: FormEvent) {
+    event.preventDefault()
+    if (pending) return
+    setPending(true)
+    const ok = await shelf.savePatchNote(noteId, date, text)
+    setPending(false)
+    if (ok) onDone()
+  }
+
+  async function remove() {
+    if (!noteId || pending) return
+    setPending(true)
+    const ok = await shelf.deletePatchNote(noteId)
+    setPending(false)
+    setConfirming(false)
+    if (ok) onDone()
+  }
+
+  return (
+    <EdgeBack onBack={onBack}>
+      <div className="min-h-dvh bg-background">
+        <ScreenHeader title={note ? '패치노트 수정' : '패치노트 추가'} onBack={onBack} />
+        <form onSubmit={save} className="grid gap-4 px-4 py-4">
+          <div className="grid gap-2">
+            <Label htmlFor="patch-date">날짜</Label>
+            <Input id="patch-date" type="date" value={date} onChange={(event) => setDate(event.target.value)} required />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="patch-text">내용</Label>
+            <textarea
+              id="patch-text"
+              value={text}
+              onChange={(event) => setText(event.target.value)}
+              rows={8}
+              placeholder="한 줄에 하나씩 적어 주세용"
+              className="w-full resize-none rounded-lg border border-input bg-transparent px-2.5 py-2 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+            />
+          </div>
+          <div className="flex gap-2">
+            <Button type="submit" className="h-11 flex-1 bg-x text-x-ink hover:bg-x/90" disabled={pending}>
+              저장
+            </Button>
+            <Button type="button" variant="outline" className="h-11" disabled={pending} onClick={onBack}>
+              취소
+            </Button>
+          </div>
+          {noteId ? (
+            <Button type="button" variant="outline" className="h-11 text-destructive" disabled={pending} onClick={() => setConfirming(true)}>
+              삭제
+            </Button>
+          ) : null}
+        </form>
+        <ConfirmDialog
+          open={confirming}
+          title="이 패치노트를 지울까용?"
+          description={note ? formatPatchDate(note.date) : ''}
+          confirmLabel="삭제"
+          destructive
+          pending={pending}
+          onOpenChange={setConfirming}
+          onConfirm={() => void remove()}
+        />
       </div>
     </EdgeBack>
   )

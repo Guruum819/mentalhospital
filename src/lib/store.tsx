@@ -24,8 +24,10 @@ import {
   toggledRead,
   withRead,
   withReading,
+  isSafeId,
 } from './model.ts'
 import { PALETTE } from './palette.ts'
+import { cleanPatchDate, cleanPatchLines } from './patch-notes.ts'
 import { createRepository, type ShelfRepository } from './repo.ts'
 import { starterShelf } from './seed.ts'
 import type { Book, Friend, Review, ShelfData } from './types.ts'
@@ -77,6 +79,8 @@ type ShelfApi = {
   changeAdmin: (current: string, next: string, again: string) => Promise<boolean>
   logoutAdmin: () => void
   clearShelf: () => Promise<boolean>
+  savePatchNote: (id: string | null, date: string, text: string) => Promise<boolean>
+  deletePatchNote: (id: string) => Promise<boolean>
 }
 
 const ShelfContext = createContext<ShelfApi | null>(null)
@@ -823,6 +827,39 @@ export function ShelfProvider({ children }: { children: ReactNode }) {
           return Promise.resolve(false)
         }
         return guard(() => repo.clearBooks())
+      },
+      async savePatchNote(id, dateRaw, text) {
+        if (!isAdmin()) {
+          toast.error('관리자만 패치노트를 고칠 수 있어용.')
+          return false
+        }
+        const date = cleanPatchDate(dateRaw)
+        if (!date) {
+          toast.error('날짜를 골라 주세용.')
+          return false
+        }
+        const lines = cleanPatchLines(text)
+        if (lines.length === 0) {
+          toast.error('내용을 입력해 주세용.')
+          return false
+        }
+        const noteId = id ?? newId('patch')
+        if (!isSafeId(noteId)) {
+          toast.error('패치노트를 저장하지 못했어용.')
+          return false
+        }
+        const ok = await guard(() => repo.savePatchNote({ id: noteId, date, lines }))
+        if (ok) toast.success('패치노트를 저장했어용.')
+        return ok
+      },
+      async deletePatchNote(id) {
+        if (!isAdmin()) {
+          toast.error('관리자만 패치노트를 고칠 수 있어용.')
+          return false
+        }
+        const ok = await guard(() => repo.deletePatchNote(id))
+        if (ok) toast.success('패치노트를 지웠어용.')
+        return ok
       },
     }
   }, [shown, ready, error, connected, repo, adminTick])
