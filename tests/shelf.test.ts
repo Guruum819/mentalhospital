@@ -13,6 +13,7 @@ import {
   type BookHit,
 } from '../src/lib/book-search.ts'
 import { cleanBirthday, cleanCover, cleanReview, dropMemberNotifications, findProfile, fromFirebase, fromPersisted, handoffAlertLine, holderAfterRemoval, holderLine, offerAlertLine, pendingPassLine, tookAlertLine, declineAlertLine, isSafeId, likeAlertLine, passTargets, resolvedHolderId, likeNotice, likeNoticeId, markedFinished, newId, nextNudgeSends, nextReviewsAfterDelete, nudgeAlertLine, nudgeAllowanceLine, nudgeLine, nudgeNotice, nudgesRemaining, readNotifications, replyAlertLine, replyNotice, requestAlertLine, requestNotice, reviewsAfterMemberRemoval, sameIdentity, seoulDay, sortedBooks, sortedComments, toggledRead, toPersisted, withNotification, withoutNotification } from '../src/lib/model.ts'
+import { cleanPatchDate, cleanPatchLines, visiblePatchNotes } from '../src/lib/patch-notes.ts'
 import { formatPatchDate } from '../src/lib/patch-notes.ts'
 import { PALETTE } from '../src/lib/palette.ts'
 import { starterShelf } from '../src/lib/seed.ts'
@@ -367,4 +368,29 @@ test('nested replies stay attached when a parent comment is removed', () => {
   })
   assert.equal(parsed.reviews[0]?.deleted, true)
   assert.equal(parsed.reviews[0]?.parentId, 'r1')
+})
+
+test('patch notes seed once and then follow the saved list', () => {
+  const seeded = fromFirebase({
+    settings: {
+      patchNotes: {
+        'patch-2026-11-17': { date: '2026-11-17', lines: { 0: '  첫째  ', 1: '' } },
+      },
+    },
+  })
+  assert.equal(seeded.patchNotesReady, false)
+  assert.equal(seeded.patchNotes.length, 1)
+  assert.equal(seeded.patchNotes[0]?.lines[0], '첫째')
+  const ready = fromFirebase({
+    settings: { patchNotesReady: true, patchNotes: {} },
+  })
+  assert.equal(ready.patchNotesReady, true)
+  assert.deepEqual(visiblePatchNotes(ready.patchNotesReady, ready.patchNotes), [])
+  assert.equal(visiblePatchNotes(false, []).length > 0, true)
+  assert.equal(cleanPatchDate('2026-02-31'), null)
+  assert.equal(cleanPatchDate('2026-11-18'), '2026-11-18')
+  assert.deepEqual(cleanPatchLines(' 하나 \n\n둘 '), ['하나', '둘'])
+  const roundTrip = fromPersisted(toPersisted({ ...ready, patchNotes: [{ id: 'patch-1', date: '2026-11-18', lines: ['남음'] }] }))
+  assert.equal(roundTrip?.patchNotes[0]?.lines[0], '남음')
+  assert.equal(roundTrip?.patchNotesReady, true)
 })

@@ -17,6 +17,8 @@ export function starterShelf(): ShelfData {
     nudgeSends: {},
     handoffs: {},
     transfers: {},
+    patchNotes: [],
+    patchNotesReady: false,
     initialized: true,
   }
 }

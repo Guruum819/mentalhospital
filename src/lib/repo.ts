@@ -4,6 +4,7 @@ import {
   getDatabase,
   onValue,
   ref,
+  runTransaction,
   update,
   type Database,
 } from 'firebase/database'
@@ -29,8 +30,9 @@ import {
   withNotification,
   withoutNotification,
 } from './model.ts'
+import { PATCH_NOTES } from './patch-notes.ts'
 import { starterFirebaseUpdate, starterShelf } from './seed.ts'
-import type { AdminLock, BoardPost, BoardReply, Book, Friend, Handoff, Notice, Review, ShelfData, SyncMode } from './types.ts'
+import type { AdminLock, BoardPost, BoardReply, Book, Friend, Handoff, Notice, PatchNote, Review, ShelfData, SyncMode } from './types.ts'
 
 const STORAGE_KEY = 'exchange-reading-v2'
 const EMULATOR_FLAG = '__exchangeReadingEmulator'
@@ -59,6 +61,8 @@ export interface ShelfRepository {
   clearNudges: (bookId: string) => Promise<void>
   setQueue: (bookId: string, friendId: string, at: number | null) => Promise<void>
   saveAdmin: (admin: AdminLock) => Promise<void>
+  savePatchNote: (note: PatchNote) => Promise<void>
+  deletePatchNote: (id: string) => Promise<void>
   addRequest: (post: BoardPost) => Promise<void>
   deleteRequest: (postId: string) => Promise<void>
   setRequestDone: (postId: string, done: boolean) => Promise<void>
@@ -143,6 +147,7 @@ function requestPayload(post: BoardPost) {
 function createFirebaseRepo(): ShelfRepository {
   let current = starterShelf()
   let seeding = false
+  let seedingNotes = false
   const migrated = new Set<string>()
 
   return {
@@ -188,6 +193,26 @@ function createFirebaseRepo(): ShelfRepository {
           current = data.initialized ? data : { ...data, initialized: true }
           seen = true
           onData(current, { connected })
+          if (!data.patchNotesReady && !seedingNotes) {
+            seedingNotes = true
+            void runTransaction(ref(db, 'settings'), (value) => {
+              if (value !== null && (typeof value !== 'object' || Array.isArray(value))) return
+              const settings = (value ?? {}) as Record<string, unknown>
+              if (settings.patchNotesReady === true) return
+              const existing = settings.patchNotes
+              const hasNotes = !!existing && typeof existing === 'object' && !Array.isArray(existing) && Object.keys(existing).length > 0
+              if (hasNotes) return { ...settings, patchNotesReady: true }
+              const patchNotes: Record<string, { date: string; lines: string[] }> = {}
+              for (const note of PATCH_NOTES) patchNotes[note.id] = { date: note.date, lines: [...note.lines] }
+              return { ...settings, patchNotes, patchNotesReady: true }
+            })
+              .then((result) => {
+                if (!result.committed) seedingNotes = false
+              })
+              .catch(() => {
+                seedingNotes = false
+              })
+          }
         },
         (error) => onError(error.message),
       )
@@ -416,6 +441,20 @@ function createFirebaseRepo(): ShelfRepository {
     },
     async saveAdmin(admin) {
       await write({ 'settings/admin': { salt: admin.salt, hash: admin.hash } })
+    },
+    async savePatchNote(note) {
+      if (!isSafeId(note.id)) throw new Error('패치노트를 저장하지 못했어용.')
+      await write({
+        [`settings/patchNotes/${note.id}`]: { date: note.date, lines: note.lines },
+        'settings/patchNotesReady': true,
+      })
+    },
+    async deletePatchNote(id) {
+      if (!isSafeId(id)) throw new Error('패치노트를 지우지 못했어용.')
+      await write({
+        [`settings/patchNotes/${id}`]: null,
+        'settings/patchNotesReady': true,
+      })
     },
     async addRequest(post) {
       await write({ [`settings/requests/${post.id}`]: requestPayload(post) })
@@ -784,6 +823,18 @@ function createDemoRepo(): ShelfRepository {
     async saveAdmin(admin) {
       persist({ ...current, admin }, true)
     },
+    async savePatchNote(note) {
+      if (!isSafeId(note.id)) throw new Error('패치노트를 저장하지 못했어용.')
+      const rest = current.patchNotes.filter((item) => item.id !== note.id)
+      persist({ ...current, patchNotes: [note, ...rest], patchNotesReady: true }, true)
+    },
+    async deletePatchNote(id) {
+      if (!isSafeId(id)) throw new Error('패치노트를 지우지 못했어용.')
+      persist(
+        { ...current, patchNotes: current.patchNotes.filter((item) => item.id !== id), patchNotesReady: true },
+        true,
+      )
+    },
     async addRequest(post) {
       persist({ ...current, posts: [post, ...current.posts.filter((item) => item.id !== post.id)] }, true)
     },
@@ -820,22 +871,36 @@ function createDemoRepo(): ShelfRepository {
 }
 
 function readDemo(): ShelfData {
+  let data: ShelfData | null = null
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
-    if (raw) {
-      const parsed = fromPersisted(JSON.parse(raw))
-      if (parsed) return parsed
+    if (raw) data = fromPersisted(JSON.parse(raw))
+  } catch {
+    data = null
+  }
+  if (!data) {
+    data = starterShelf()
+  }
+  const seeded = seedPatchNotesOnce(data)
+  if (!data.patchNotesReady || seeded.patchNotes !== data.patchNotes) {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(toPersisted(seeded)))
+    } catch {
+      // ignore
     }
-  } catch {
-    // fall through to the shared starter shelf
   }
-  const seed = starterShelf()
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(toPersisted(seed)))
-  } catch {
-    // ignore
+  return seeded
+}
+
+/** Copies the built-in list a single time. After that the saved list, even empty, wins. */
+function seedPatchNotesOnce(data: ShelfData): ShelfData {
+  if (data.patchNotesReady) return data
+  if (data.patchNotes.length > 0) return { ...data, patchNotesReady: true }
+  return {
+    ...data,
+    patchNotes: PATCH_NOTES.map((note) => ({ id: note.id, date: note.date, lines: [...note.lines] })),
+    patchNotesReady: true,
   }
-  return seed
 }
 
 export function createRepository(): ShelfRepository {

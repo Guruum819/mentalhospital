@@ -1,5 +1,5 @@
 import { PALETTE } from './palette.ts'
-import type { Book, BookSort, CommentSort, Friend, Handoff, IdQueue, Notice, ReadMap, Review, ShelfData, Transfer } from './types.ts'
+import type { Book, BookSort, CommentSort, Friend, Handoff, IdQueue, Notice, PatchNote, ReadMap, Review, ShelfData, Transfer } from './types.ts'
 
 export const MAX_NAME = 20
 export const MAX_TITLE = 80
@@ -23,6 +23,8 @@ export function emptyShelf(): ShelfData {
     nudgeSends: {},
     handoffs: {},
     transfers: {},
+    patchNotes: [],
+    patchNotesReady: false,
     initialized: false,
   }
 }
@@ -316,6 +318,43 @@ function parseAdmin(raw: unknown): ShelfData['admin'] {
   return { salt, hash }
 }
 
+function parsePatchLines(raw: unknown): string[] {
+  const source = Array.isArray(raw)
+    ? raw
+    : isRecord(raw)
+      ? Object.entries(raw)
+          .sort(([left], [right]) => Number(left) - Number(right) || left.localeCompare(right))
+          .map(([, value]) => value)
+      : []
+  return source
+    .filter((line): line is string => typeof line === 'string')
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0)
+    .slice(0, 40)
+    .map((line) => Array.from(line).slice(0, 200).join(''))
+}
+
+export function parsePatchNotes(raw: unknown): PatchNote[] {
+  const entries: Array<[string, unknown]> = []
+  if (Array.isArray(raw)) {
+    for (const value of raw) {
+      if (!isRecord(value) || typeof value.id !== 'string') continue
+      entries.push([value.id, value])
+    }
+  } else if (isRecord(raw)) {
+    entries.push(...Object.entries(raw))
+  }
+  const notes: PatchNote[] = []
+  for (const [id, value] of entries) {
+    if (!isSafeId(id) || !isRecord(value)) continue
+    const date = typeof value.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value.date) ? value.date : ''
+    const lines = parsePatchLines(value.lines)
+    if (!date || lines.length === 0) continue
+    notes.push({ id, date, lines })
+  }
+  return notes.sort((a, b) => b.date.localeCompare(a.date) || a.id.localeCompare(b.id))
+}
+
 function parseReplyList(raw: unknown): ShelfData['posts'][number]['replies'] {
   const entries: [string, unknown][] = Array.isArray(raw)
     ? raw.map((item, index) => [isRecord(item) && typeof item.id === 'string' ? item.id : `reply-${index}`, item])
@@ -560,6 +599,8 @@ export function fromFirebase(raw: unknown): ShelfData {
     nudgeSends: parseNudgeSendsUnderFriends(friendsRaw),
     handoffs: parseHandoffs(settings.handoffs),
     transfers: parseTransfers(settings.transfers),
+    patchNotes: parsePatchNotes(settings.patchNotes),
+    patchNotesReady: settings.patchNotesReady === true,
     initialized: settings.initialized === true,
   }
 }
@@ -601,6 +642,8 @@ export function fromPersisted(raw: unknown): ShelfData | null {
     nudgeSends: parseNudgeSendMap(raw.nudgeSends),
     handoffs: parseHandoffMap(raw.handoffs),
     transfers: parseTransfers(raw.transfers),
+    patchNotes: parsePatchNotes(raw.patchNotes),
+    patchNotesReady: raw.patchNotesReady === true,
     initialized: raw.initialized === true,
   }
 }

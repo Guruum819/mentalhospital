@@ -117,10 +117,20 @@ export type ShelfData = {
   handoffs: Record<string, Handoff[]>
   /** bookId → the one pending hand-off, if someone has been asked. */
   transfers: Record<string, Transfer>
+  patchNotes: PatchNote[]
+  /** True after the notes have been seeded or saved. An empty list then stays empty. */
+  patchNotesReady: boolean
   initialized: boolean
 }
 
 export type SyncMode = 'firebase' | 'demo'
+
+export type PatchNote = {
+  id: string
+  /** YYYY-MM-DD. */
+  date: string
+  lines: string[]
+}
 
 export type BookSort = 'new' | 'popular' | 'read'
 export type CommentSort = 'likes' | 'new'

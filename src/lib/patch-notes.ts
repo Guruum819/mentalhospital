@@ -1,17 +1,17 @@
-export type PatchNote = {
-  /** YYYY-MM-DD. Newest entries belong at the top. */
-  date: string
-  lines: string[]
-}
+import type { PatchNote } from './types.ts'
+
+export type { PatchNote }
 
 export const PATCH_NOTES: PatchNote[] = [
   {
+    id: 'patch-2026-11-18',
     date: '2026-11-18',
     lines: [
       '댓글에 답글을 끝없이 달 수 있게 했어용. 깊어지면 접혀 있고 자세히 보기로 펼칠 수 있어용.',
     ],
   },
   {
+    id: 'patch-2026-11-17',
     date: '2026-11-17',
     lines: [
       '보안을 강화했어용!',
@@ -54,9 +54,28 @@ export const PATCH_NOTES: PatchNote[] = [
   },
 ]
 
-/** Newest day first. Add another `{ date, lines }` entry for a future day. */
-export function patchNotesNewestFirst(): PatchNote[] {
-  return [...PATCH_NOTES].sort((a, b) => b.date.localeCompare(a.date))
+/** Newest day first. The saved database wins once it has been seeded. */
+export function visiblePatchNotes(ready: boolean, notes: readonly PatchNote[]): PatchNote[] {
+  const source = ready ? notes : PATCH_NOTES
+  return [...source].sort((a, b) => b.date.localeCompare(a.date) || a.id.localeCompare(b.id))
+}
+
+export function cleanPatchDate(raw: string): string | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return null
+  const [year, month, day] = raw.split('-').map(Number)
+  const date = new Date(Date.UTC(year, month - 1, day))
+  if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) return null
+  return raw
+}
+
+/** One sentence per line. Blank lines are dropped. */
+export function cleanPatchLines(raw: string): string[] {
+  return raw
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0)
+    .slice(0, 40)
+    .map((line) => Array.from(line).slice(0, 200).join(''))
 }
 
 export function formatPatchDate(iso: string): string {
