@@ -16,6 +16,7 @@ import { NotificationsPage } from '@/components/notifications-page'
 import { OpeningBook } from '@/components/opening-book'
 import { ProfileGate } from '@/components/profile-gate'
 import { ProfilePage } from '@/components/profile-page'
+import { MyShelfPage } from '@/components/my-shelf-page'
 import { SettingsPage } from '@/components/settings-page'
 import { Button } from '@/components/ui/button'
 import {
@@ -31,6 +32,7 @@ type View =
   | { name: 'settings'; postId?: string }
   | { name: 'alerts' }
   | { name: 'profile'; friendId: string }
+  | { name: 'mine' }
   | { name: 'book'; bookId: string }
 
 type Confirm =
@@ -291,11 +293,25 @@ export function ShelfScreen() {
       onSwitch={enter}
       onAddAccount={() => setAccount('login')}
       onProfile={() => setStack([{ name: 'home' }, { name: 'profile', friendId: me.id }])}
+      onMine={() => setStack([{ name: 'home' }, { name: 'mine' }])}
       onSettings={() => setStack([{ name: 'home' }, { name: 'settings' }])}
     >
       {(openDrawer) => (
         <div className="mx-auto flex min-h-dvh w-full max-w-[600px] flex-col">
-          {top.name === 'profile' && profileFriend ? (
+          {top.name === 'mine' ? (
+            <MyShelfPage
+              meId={me.id}
+              books={shelf.data.books}
+              reads={shelf.data.reads}
+              approvedIds={new Set(members.map((friend) => friend.id))}
+              onBack={pop}
+              onOpenBook={(bookId) => push({ name: 'book', bookId })}
+              onAdd={() => {
+                setEditingBook(null)
+                setBookOpen(true)
+              }}
+            />
+          ) : top.name === 'profile' && profileFriend ? (
             <ProfilePage
               friend={profileFriend}
               mine={profileFriend.id === me.id}

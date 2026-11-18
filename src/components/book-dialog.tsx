@@ -3,6 +3,7 @@ import { ImageOff, Loader2 } from 'lucide-react'
 import { searchBooks, searchCovers, type BookHit } from '@/lib/book-search'
 import { compressCover } from '@/lib/cover-image'
 import { readWho } from '@/lib/identity'
+import { cleanPages } from '@/lib/model'
 import { useShelf } from '@/lib/store'
 import type { Book } from '@/lib/types'
 import { Button } from '@/components/ui/button'
@@ -37,6 +38,7 @@ export function BookDialog({
   const [title, setTitle] = useState('')
   const [author, setAuthor] = useState('')
   const [coverUrl, setCoverUrl] = useState<string | null>(null)
+  const [pages, setPages] = useState('')
   const [covers, setCovers] = useState<BookHit[]>([])
   const [coverBusy, setCoverBusy] = useState(false)
   const [pendingId, setPendingId] = useState<string | null>(null)
@@ -52,6 +54,7 @@ export function BookDialog({
     setTitle(book?.title ?? '')
     setAuthor(book?.author ?? '')
     setCoverUrl(book?.coverUrl ?? null)
+    setPages(book?.pages ? String(book.pages) : '')
     setCovers([])
     setCoverBusy(false)
     setPendingId(null)
@@ -125,7 +128,12 @@ export function BookDialog({
               className="space-y-3"
               onSubmit={(event) => {
                 event.preventDefault()
-                void shelf.updateBook(book.id, { title, author, coverUrl, buyerId: book.buyerId }).then((ok) => {
+                const nextPages = cleanPages(pages)
+                if (pages.trim() && !nextPages) {
+                  setWarning('쪽수는 1에서 9999 사이로 적어 주세용.')
+                  return
+                }
+                void shelf.updateBook(book.id, { title, author, coverUrl, buyerId: book.buyerId, pages: nextPages }).then((ok) => {
                   if (ok) onOpenChange(false)
                 })
               }}
@@ -137,6 +145,17 @@ export function BookDialog({
               <div className="space-y-1.5">
                 <Label htmlFor="edit-author">저자</Label>
                 <Input id="edit-author" value={author} onChange={(event) => setAuthor(event.target.value)} className={fieldClass} />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="edit-pages">쪽수</Label>
+                <Input
+                  id="edit-pages"
+                  inputMode="numeric"
+                  value={pages}
+                  onChange={(event) => setPages(event.target.value)}
+                  placeholder="모르면 비워 두세용"
+                  className={fieldClass}
+                />
               </div>
               <CoverEditor
                 title={title}

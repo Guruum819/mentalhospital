@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
-import { Settings, UserRound } from 'lucide-react'
+import { Library, Settings, UserRound } from 'lucide-react'
 import { paletteColor } from '@/lib/palette'
 import type { Friend } from '@/lib/types'
 import { Avatar } from '@/components/avatar-editor'
@@ -22,6 +22,7 @@ export function AppDrawer({
   onSwitch,
   onAddAccount,
   onProfile,
+  onMine,
   onSettings,
   children,
 }: {
@@ -32,6 +33,7 @@ export function AppDrawer({
   onSwitch: (id: string) => void
   onAddAccount: () => void
   onProfile: () => void
+  onMine: () => void
   onSettings: () => void
   children: (openDrawer: () => void) => ReactNode
 }) {
@@ -187,6 +189,9 @@ export function AppDrawer({
         <nav className="mt-5 border-t border-border">
           <button type="button" className="flex h-14 w-full items-center gap-4 px-4 text-left text-[17px] font-bold hover:bg-muted" onClick={() => { toggle(false); onProfile() }}>
             <UserRound className="size-5" /> 프로필
+          </button>
+          <button type="button" className="flex h-14 w-full items-center gap-4 px-4 text-left text-[17px] font-bold hover:bg-muted" onClick={() => { toggle(false); onMine() }}>
+            <Library className="size-5" /> 내 서재
           </button>
           <button type="button" className="flex h-14 w-full items-center gap-4 px-4 text-left text-[17px] font-bold hover:bg-muted" onClick={() => { toggle(false); onSettings() }}>
             <Settings className="size-5" /> 설정

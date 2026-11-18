@@ -72,6 +72,8 @@ export type Book = {
   coverUrl: string | null
   buyerId: string
   order: number
+  /** Page count, when someone has filled it in. Spines use it for thickness. */
+  pages?: number | null
   /**
    * Who physically has the copy.
    * Missing or null follows the buyer. '' means nobody has it.
