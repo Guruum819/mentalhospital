@@ -18,8 +18,10 @@ export type Review = {
   createdAt: number
   /** 0–5 in steps of 0.5. Null on a reply, or if a review was saved before ratings existed. */
   rating: number | null
-  /** Set when this is a one-level reply to another review. */
+  /** Set when this comment answers another comment. Replies can nest without a depth limit. */
   parentId: string | null
+  /** The text stays in storage, but the thread shows a placeholder so children are not lost. */
+  deleted?: boolean
   editedAt: number | null
   /** Friend ids who liked this review. One like per member. */
   likes: string[]

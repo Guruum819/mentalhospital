@@ -257,21 +257,23 @@ function parseReviews(raw: unknown): Review[] {
     if (!isRecord(item) || typeof item.id !== 'string' || !isSafeId(item.id)) continue
     const bookId = typeof item.bookId === 'string' ? item.bookId : ''
     const friendId = typeof item.friendId === 'string' ? item.friendId : ''
+    const deleted = item.deleted === true
     const text = cleanReview(item.text)
     const createdAt = typeof item.createdAt === 'number' && Number.isFinite(item.createdAt) ? item.createdAt : 0
-    if (!isSafeId(bookId) || !isSafeId(friendId) || !text) continue
+    if (!isSafeId(bookId) || !isSafeId(friendId) || (!text && !deleted)) continue
     const parentId = typeof item.parentId === 'string' && isSafeId(item.parentId) ? item.parentId : null
     const editedAt = typeof item.editedAt === 'number' && Number.isFinite(item.editedAt) ? item.editedAt : null
     reviews.push({
       id: item.id,
       bookId,
       friendId,
-      text,
+      text: text || '삭제된 댓글이에용',
       createdAt,
       rating: snapRating(item.rating),
       parentId,
       editedAt,
       likes: parseLikeIds(item.likes),
+      ...(deleted ? { deleted: true } : {}),
     })
   }
   return reviews.sort((a, b) => b.createdAt - a.createdAt)
@@ -616,6 +618,7 @@ export function reviewsRecord(reviews: readonly Review[]) {
         parentId: review.parentId,
         editedAt: review.editedAt,
         likes: Object.fromEntries(review.likes.map((id) => [id, true])),
+        ...(review.deleted ? { deleted: true } : {}),
       },
     ]),
   )
@@ -824,6 +827,48 @@ export function replyNotice(
       read: false,
     },
   }
+}
+
+function childrenOf(reviews: readonly Review[], id: string): Review[] {
+  return reviews.filter((review) => review.parentId === id)
+}
+
+function hasForeignDescendant(reviews: readonly Review[], id: string, removedIds: ReadonlySet<string>): boolean {
+  for (const child of childrenOf(reviews, id)) {
+    if (!removedIds.has(child.id) || hasForeignDescendant(reviews, child.id, removedIds)) return true
+  }
+  return false
+}
+
+/** Drop a comment, or leave a placeholder when replies would otherwise disappear. */
+export function nextReviewsAfterDelete(reviews: readonly Review[], reviewId: string): Review[] {
+  const target = reviews.find((review) => review.id === reviewId)
+  if (!target || target.deleted) return reviews.slice()
+  if (childrenOf(reviews, reviewId).length > 0) {
+    return reviews.map((review) => (review.id === reviewId ? { ...review, deleted: true } : review))
+  }
+  const drop = new Set<string>([reviewId])
+  let parentId = target.parentId
+  while (parentId) {
+    const parent = reviews.find((review) => review.id === parentId)
+    if (!parent?.deleted) break
+    const remaining = reviews.some((review) => review.parentId === parent.id && !drop.has(review.id))
+    if (remaining) break
+    drop.add(parent.id)
+    parentId = parent.parentId
+  }
+  return reviews.filter((review) => !drop.has(review.id))
+}
+
+/** A removed member's comment becomes a placeholder when someone else's reply is still attached. */
+export function reviewsAfterMemberRemoval(reviews: readonly Review[], friendId: string): Review[] {
+  const removedIds = new Set(reviews.filter((review) => review.friendId === friendId).map((review) => review.id))
+  return reviews.flatMap((review) => {
+    const likes = review.likes.filter((id) => id !== friendId)
+    if (!removedIds.has(review.id)) return [{ ...review, likes }]
+    if (hasForeignDescendant(reviews, review.id, removedIds)) return [{ ...review, likes, deleted: true }]
+    return []
+  })
 }
 
 export function nudgeNotice(

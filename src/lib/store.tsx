@@ -346,7 +346,7 @@ export function ShelfProvider({ children }: { children: ReactNode }) {
           return false
         }
         const review = shownNow().reviews.find((item) => item.id === reviewId)
-        if (!review || review.friendId !== readWho()) {
+        if (!review || review.deleted || review.friendId !== readWho()) {
           toast.error('내가 쓴 글만 고칠 수 있어용.')
           return false
         }
@@ -356,7 +356,7 @@ export function ShelfProvider({ children }: { children: ReactNode }) {
       },
       deleteReview(reviewId) {
         const review = shownNow().reviews.find((item) => item.id === reviewId)
-        if (!review || review.friendId !== readWho()) {
+        if (!review || review.deleted || review.friendId !== readWho()) {
           toast.error('내가 쓴 글만 지울 수 있어용.')
           return Promise.resolve(false)
         }
@@ -366,7 +366,7 @@ export function ShelfProvider({ children }: { children: ReactNode }) {
         const shelf = shownNow()
         const me = readWho()
         const review = shelf.reviews.find((item) => item.id === reviewId)
-        if (!me || !review || !shelf.friends.some((friend) => friend.id === me && friend.approved)) return
+        if (!me || !review || review.deleted || !shelf.friends.some((friend) => friend.id === me && friend.approved)) return
         const like = !review.likes.includes(me)
         const key = cellKey(reviewId, me)
         pendingRef.current.likes.set(key, like)
@@ -390,7 +390,7 @@ export function ShelfProvider({ children }: { children: ReactNode }) {
         const shelf = shownNow()
         const me = readWho()
         const parent = shelf.reviews.find((item) => item.id === reviewId)
-        if (!me || !parent || parent.parentId || !shelf.friends.some((friend) => friend.id === me && friend.approved)) return false
+        if (!me || !parent || parent.deleted || !shelf.friends.some((friend) => friend.id === me && friend.approved)) return false
         const reply: Review = {
           id: newId('review'),
           bookId: parent.bookId,

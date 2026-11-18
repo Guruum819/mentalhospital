@@ -12,7 +12,7 @@ import {
   titleForHangulQuery,
   type BookHit,
 } from '../src/lib/book-search.ts'
-import { cleanBirthday, cleanCover, cleanReview, dropMemberNotifications, findProfile, fromFirebase, fromPersisted, handoffAlertLine, holderAfterRemoval, holderLine, offerAlertLine, pendingPassLine, tookAlertLine, declineAlertLine, isSafeId, likeAlertLine, passTargets, resolvedHolderId, likeNotice, likeNoticeId, markedFinished, newId, nextNudgeSends, nudgeAlertLine, nudgeAllowanceLine, nudgeLine, nudgeNotice, nudgesRemaining, readNotifications, replyAlertLine, replyNotice, requestAlertLine, requestNotice, sameIdentity, seoulDay, sortedBooks, sortedComments, toggledRead, toPersisted, withNotification, withoutNotification } from '../src/lib/model.ts'
+import { cleanBirthday, cleanCover, cleanReview, dropMemberNotifications, findProfile, fromFirebase, fromPersisted, handoffAlertLine, holderAfterRemoval, holderLine, offerAlertLine, pendingPassLine, tookAlertLine, declineAlertLine, isSafeId, likeAlertLine, passTargets, resolvedHolderId, likeNotice, likeNoticeId, markedFinished, newId, nextNudgeSends, nextReviewsAfterDelete, nudgeAlertLine, nudgeAllowanceLine, nudgeLine, nudgeNotice, nudgesRemaining, readNotifications, replyAlertLine, replyNotice, requestAlertLine, requestNotice, reviewsAfterMemberRemoval, sameIdentity, seoulDay, sortedBooks, sortedComments, toggledRead, toPersisted, withNotification, withoutNotification } from '../src/lib/model.ts'
 import { formatPatchDate } from '../src/lib/patch-notes.ts'
 import { PALETTE } from '../src/lib/palette.ts'
 import { starterShelf } from '../src/lib/seed.ts'
@@ -326,4 +326,45 @@ test('a book stays with its buyer until someone passes it on', () => {
   assert.equal(parsed.books[0]?.holderId, '')
   assert.equal(resolvedHolderId(parsed.books[0]!, new Set(['friend-chaeryeong'])), null)
   assert.equal(parsed.handoffs['book-1']?.[0]?.fromId, 'friend-chaeryeong')
+})
+
+test('nested replies stay attached when a parent comment is removed', () => {
+  const base = {
+    bookId: 'book-1',
+    rating: null,
+    editedAt: null,
+    likes: [] as string[],
+  }
+  const reviews = [
+    { ...base, id: 'top', friendId: 'a', text: '본글', createdAt: 1, parentId: null },
+    { ...base, id: 'r1', friendId: 'b', text: '하나', createdAt: 2, parentId: 'top' },
+    { ...base, id: 'r2', friendId: 'a', text: '둘', createdAt: 3, parentId: 'r1' },
+    { ...base, id: 'leaf', friendId: 'b', text: '끝', createdAt: 4, parentId: 'r2' },
+  ]
+  const kept = nextReviewsAfterDelete(reviews, 'r1')
+  assert.equal(kept.find((review) => review.id === 'r1')?.deleted, true)
+  assert.equal(kept.some((review) => review.id === 'r2'), true)
+  const leafGone = nextReviewsAfterDelete(kept, 'leaf')
+  assert.equal(leafGone.some((review) => review.id === 'leaf'), false)
+  assert.equal(leafGone.some((review) => review.id === 'r2'), true)
+  const cleared = nextReviewsAfterDelete(
+    leafGone.map((review) => (review.id === 'r2' ? { ...review, deleted: true } : review)),
+    'r2',
+  )
+  assert.equal(cleared.some((review) => review.id === 'r2'), true)
+  const afterChild = nextReviewsAfterDelete(cleared, 'r2')
+  assert.equal(afterChild.find((review) => review.id === 'r2')?.deleted, true)
+  const removed = reviewsAfterMemberRemoval(reviews, 'a')
+  assert.equal(removed.find((review) => review.id === 'top')?.deleted, true)
+  assert.equal(removed.find((review) => review.id === 'r2')?.deleted, true)
+  assert.equal(removed.some((review) => review.id === 'r1'), true)
+  assert.equal(removed.some((review) => review.id === 'leaf'), true)
+  const parsed = fromFirebase({
+    reviews: {
+      deep: { bookId: 'book-1', friendId: 'b', text: '깊이', createdAt: 5, parentId: 'r1', deleted: true },
+    },
+    friends: { b: { name: '룬', order: 1, color: 'forest', birthday: '1999-01-01' } },
+  })
+  assert.equal(parsed.reviews[0]?.deleted, true)
+  assert.equal(parsed.reviews[0]?.parentId, 'r1')
 })

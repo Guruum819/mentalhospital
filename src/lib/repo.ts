@@ -19,10 +19,12 @@ import {
   isSafeId,
   likeNotice,
   nextNudgeSends,
+  nextReviewsAfterDelete,
   nudgeNotice,
   readNotifications,
   requestNotice,
   replyNotice,
+  reviewsAfterMemberRemoval,
   toPersisted,
   withNotification,
   withoutNotification,
@@ -109,6 +111,7 @@ function reviewPayload(review: Review) {
     parentId: review.parentId,
     editedAt: review.editedAt,
     likes: Object.fromEntries(review.likes.map((id) => [id, true])),
+    ...(review.deleted ? { deleted: true } : {}),
   }
 }
 
@@ -213,17 +216,13 @@ function createFirebaseRepo(): ShelfRepository {
       for (const [bookId, readerId] of Object.entries(current.reading)) {
         if (readerId === friendId) values[`reading/${bookId}`] = null
       }
-      const removed = new Set<string>()
+      const kept = reviewsAfterMemberRemoval(current.reviews, friendId)
+      const keptById = new Map(kept.map((review) => [review.id, review]))
       for (const review of current.reviews) {
-        if (review.friendId === friendId) {
-          values[`reviews/${review.id}`] = null
-          removed.add(review.id)
-        } else if (review.likes.includes(friendId)) {
-          values[`reviews/${review.id}/likes/${friendId}`] = null
-        }
-      }
-      for (const review of current.reviews) {
-        if (review.parentId && removed.has(review.parentId)) values[`reviews/${review.id}`] = null
+        const updated = keptById.get(review.id)
+        if (!updated) values[`reviews/${review.id}`] = null
+        else if (updated.deleted && !review.deleted) values[`reviews/${review.id}/deleted`] = true
+        if (updated && review.likes.includes(friendId)) values[`reviews/${review.id}/likes/${friendId}`] = null
       }
       for (const post of current.posts) {
         if (post.friendId === friendId) values[`settings/requests/${post.id}`] = null
@@ -371,10 +370,15 @@ function createFirebaseRepo(): ShelfRepository {
       })
     },
     async deleteReview(reviewId) {
-      const values: Record<string, unknown> = { [`reviews/${reviewId}`]: null }
+      const next = nextReviewsAfterDelete(current.reviews, reviewId)
+      const nextById = new Map(next.map((review) => [review.id, review]))
+      const values: Record<string, unknown> = {}
       for (const review of current.reviews) {
-        if (review.parentId === reviewId) values[`reviews/${review.id}`] = null
+        const updated = nextById.get(review.id)
+        if (!updated) values[`reviews/${review.id}`] = null
+        else if (updated.deleted && !review.deleted) values[`reviews/${review.id}/deleted`] = true
       }
+      if (Object.keys(values).length === 0) return
       await write(values)
     },
     async setReviewLike(reviewId, friendId, like) {
@@ -541,7 +545,6 @@ function createDemoRepo(): ShelfRepository {
         }),
       )
       const reading = Object.fromEntries(Object.entries(current.reading).filter(([, reader]) => reader !== friendId))
-      const removed = new Set(current.reviews.filter((review) => review.friendId === friendId).map((review) => review.id))
       const nudges = Object.fromEntries(
         Object.entries(current.nudges)
           .map(([bookId, ids]) => [bookId, ids.filter((id) => id !== friendId)] as const)
@@ -558,9 +561,7 @@ function createDemoRepo(): ShelfRepository {
           friends: current.friends.filter((friend) => friend.id !== friendId),
           reads,
           reading,
-          reviews: current.reviews
-            .filter((review) => review.friendId !== friendId && !(review.parentId && removed.has(review.parentId)))
-            .map((review) => ({ ...review, likes: review.likes.filter((id) => id !== friendId) })),
+          reviews: reviewsAfterMemberRemoval(current.reviews, friendId),
           posts: current.posts.filter((post) => post.friendId !== friendId),
           nudges,
           queues,
@@ -730,13 +731,7 @@ function createDemoRepo(): ShelfRepository {
       )
     },
     async deleteReview(reviewId) {
-      persist(
-        {
-          ...current,
-          reviews: current.reviews.filter((review) => review.id !== reviewId && review.parentId !== reviewId),
-        },
-        true,
-      )
+      persist({ ...current, reviews: nextReviewsAfterDelete(current.reviews, reviewId) }, true)
     },
     async setReviewLike(reviewId, friendId, like) {
       let next: ShelfData = {
